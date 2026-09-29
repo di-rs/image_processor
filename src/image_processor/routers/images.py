@@ -6,6 +6,7 @@ from fastapi import APIRouter, Query, status
 from .. import crud
 from ..dependencies import ImageDep, SessionDep
 from ..models import Image, ImageRead, ImageUpdate, ProcessingStatus
+from ..services import images as images_service
 
 logger = logging.getLogger(__name__)
 
@@ -43,4 +44,4 @@ def update_image(
 )
 def delete_image(image: ImageDep, session: SessionDep) -> None:
     logger.info("Deleting image image_id=%s", image.id)
-    crud.delete_image(session, image)
+    images_service.delete_image(session, image)

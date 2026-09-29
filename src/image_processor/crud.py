@@ -1,7 +1,6 @@
 from sqlmodel import Session, col, select
 
 from .models import Image, ImageUpdate, ProcessingStatus
-from .services import blob_storage
 
 
 def list_images(
@@ -30,7 +29,5 @@ def update_image(session: Session, image: Image, payload: ImageUpdate) -> Image:
 
 
 def delete_image(session: Session, image: Image) -> None:
-    storage_path = image.storage_path
     session.delete(image)
     session.commit()
-    blob_storage.delete(storage_path)

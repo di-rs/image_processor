@@ -10,6 +10,7 @@ from sqlalchemy.exc import IntegrityError
 from . import __version__
 from .config import configure_logging, get_settings
 from .routers import images
+from .services.blob_storage import BlobStorageError
 
 APP_NAME = "Image Processing API"
 logger = logging.getLogger(__name__)
@@ -41,6 +42,21 @@ def handle_integrity_error(
     return JSONResponse(
         status_code=status.HTTP_409_CONFLICT,
         content={"detail": "Data conflict occured."},
+    )
+
+
+@app.exception_handler(BlobStorageError)
+def handle_blob_storage_error(
+    request: Request, exc: BlobStorageError
+) -> JSONResponse:
+    logger.warning(
+        "Blob storage failed method=%s path=%s",
+        request.method,
+        request.url.path,
+    )
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={"detail": "Failed to delete stored file."},
     )
 
 
