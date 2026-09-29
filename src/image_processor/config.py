@@ -5,12 +5,14 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 DEFAULT_DATABASE_URL = "postgresql+psycopg://image_processor:image_processor@localhost:5432/image_processor"
 DEFAULT_RABBITMQ_URL = "amqp://image_processor:image_processor@localhost:5672"
+DEFAULT_STORAGE_DIR = "/data/images"
 LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s %(message)s"
 
 
 class Settings(BaseSettings):
     database_url: str = DEFAULT_DATABASE_URL
     rabbitmq_url: str = DEFAULT_RABBITMQ_URL
+    storage_dir: str = DEFAULT_STORAGE_DIR
     debug: bool = False
 
     model_config = SettingsConfigDict(

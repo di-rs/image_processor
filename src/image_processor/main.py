@@ -24,7 +24,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
 app = FastAPI(
     title=APP_NAME,
     version=__version__,
-    description="An API for image processing with queue and different types of processing.",
+    description="Image Processing API with queue and processing workers.",
     lifespan=lifespan,
 )
 
