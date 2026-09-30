@@ -66,3 +66,9 @@ class ImageRead(ImageBase):
     height: int | None
     created_at: datetime
     updated_at: datetime
+
+
+class UploadReservationRead(SQLModel):
+    id: int
+    upload_url: str
+    upload_expires_at: datetime

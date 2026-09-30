@@ -1,14 +1,26 @@
 import logging
-from typing import Annotated
+from datetime import datetime
+from typing import Annotated, cast
 
 from fastapi import APIRouter, Query, status
 
 from .. import crud
 from ..dependencies import BlobStorageDep, ImageDep, SessionDep
-from ..models import Image, ImageRead, ImageUpdate, ProcessingStatus
+from ..models import (
+    Image,
+    ImageCreate,
+    ImageRead,
+    ImageUpdate,
+    ProcessingStatus,
+    UploadReservationRead,
+)
 from ..services import images as images_service
 
 logger = logging.getLogger(__name__)
+
+StatusFilter = Annotated[list[ProcessingStatus] | None, Query()]
+Limit = Annotated[int, Query(ge=1, le=100)]
+Offset = Annotated[int, Query(ge=0)]
 
 router = APIRouter(prefix="/images", tags=["images"])
 
@@ -16,10 +28,46 @@ router = APIRouter(prefix="/images", tags=["images"])
 @router.get("", response_model=list[ImageRead])
 def list_images(
     session: SessionDep,
-    status: Annotated[ProcessingStatus | None, Query()] = None,
+    status: StatusFilter = None,
+    limit: Limit = 50,
+    offset: Offset = 0,
 ) -> list[Image]:
-    logger.info("Listing images status=%s", status)
-    return crud.list_images(session, status)
+    logger.info(
+        "Listing images status=%s limit=%s offset=%s",
+        status,
+        limit,
+        offset,
+    )
+    return crud.list_images(
+        session,
+        statuses=status,
+        limit=limit,
+        offset=offset,
+    )
+
+
+@router.post(
+    "",
+    status_code=status.HTTP_201_CREATED,
+    response_model=UploadReservationRead,
+)
+def reserve_upload(
+    payload: ImageCreate,
+    session: SessionDep,
+    blob_storage: BlobStorageDep,
+) -> UploadReservationRead:
+    logger.info("Reserving upload filename=%s", payload.filename)
+    image = images_service.reserve_upload(
+        session,
+        blob_storage,
+        filename=payload.filename,
+        content_type=payload.content_type,
+    )
+    return UploadReservationRead(
+        id=cast(int, image.id),
+        upload_url=f"/images/uploads/{cast(str, image.upload_token)}",
+        upload_expires_at=cast(datetime, image.upload_expires_at),
+    )
 
 
 @router.get("/{image_id}", response_model=ImageRead)

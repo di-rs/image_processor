@@ -18,4 +18,4 @@ RUN uv sync --frozen --no-dev
 
 EXPOSE 8000
 
-CMD ["fastapi", "run"l
+CMD ["fastapi", "run"]

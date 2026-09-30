@@ -1,5 +1,6 @@
 from functools import lru_cache
 from pathlib import Path
+from secrets import token_urlsafe
 
 from ..config import get_settings
 
@@ -11,6 +12,18 @@ class BlobStorageError(Exception):
 class BlobStorage:
     def __init__(self, storage_dir: Path) -> None:
         self._storage_dir = storage_dir
+
+    def reserve_path(self, filename: str) -> str:
+        name = Path(filename.strip()).name
+        if not name or name in {".", ".."}:
+            raise BlobStorageError(f"Invalid filename filename={filename}")
+        root = self._storage_dir.resolve()
+        path = (root / token_urlsafe(16) / name).resolve()
+        if not path.is_relative_to(root):
+            raise BlobStorageError(
+                f"Refusing to reserve file outside storage root path={path}"
+            )
+        return str(path)
 
     def delete(self, storage_path: str | None) -> None:
         if storage_path is None:

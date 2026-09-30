@@ -5,11 +5,18 @@ from .models import Image, ImageUpdate, ProcessingStatus
 
 def list_images(
     session: Session,
-    status: ProcessingStatus | None = None,
+    *,
+    statuses: list[ProcessingStatus] | None = None,
+    limit: int | None = None,
+    offset: int | None = None,
 ) -> list[Image]:
     statement = select(Image).order_by(col(Image.created_at).desc())
-    if status is not None:
-        statement = statement.where(Image.status == status)
+    if statuses:
+        statement = statement.where(col(Image.status).in_(statuses))
+    if offset is not None:
+        statement = statement.offset(offset)
+    if limit is not None:
+        statement = statement.limit(limit)
     images = session.exec(statement).all()
     return list(images)
 
