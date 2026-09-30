@@ -5,6 +5,7 @@ from image_processor.domain.images import (
     ImageDomainError,
     InvalidImageStateError,
     UploadExpiredError,
+    UploadNotFoundError,
 )
 from image_processor.exception_handlers import register_exception_handlers
 
@@ -18,6 +19,15 @@ def _client_for(error: ImageDomainError) -> TestClient:
         raise error
 
     return TestClient(app)
+
+
+def test_upload_not_found_error_is_not_found() -> None:
+    response = _client_for(
+        UploadNotFoundError("Upload token was not found")
+    ).get("/boom")
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Upload token was not found"}
 
 
 def test_upload_expired_error_is_gone() -> None:

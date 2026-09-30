@@ -1,33 +1,16 @@
-from datetime import UTC, datetime, timedelta
-
-from sqlmodel import Session
-
-from image_processor.config import DEFAULT_UPLOAD_TTL_MINUTES
 from image_processor.services.blob_storage import BlobStorage
-from image_processor.services.images import reserve_upload
+from image_processor.services.images import create_upload_target
 
 
-def test_reserve_upload_persists_a_reservation(
-    session: Session,
+def test_create_upload_target_does_not_persist(
     blob_storage: BlobStorage,
 ) -> None:
-    before = datetime.now(UTC)
-
-    reservation = reserve_upload(
-        session,
+    target = create_upload_target(
         blob_storage,
         filename=" cat.png ",
         content_type="image/png",
     )
 
-    after = datetime.now(UTC)
-    token = reservation.upload_url.removeprefix("/images/uploads/")
-
-    assert reservation.id == 1
+    token = target.upload_url.removeprefix("/images/uploads/")
     assert token
-    assert reservation.upload_url == f"/images/uploads/{token}"
-    expires_at = reservation.upload_expires_at
-    if expires_at.tzinfo is None:
-        expires_at = expires_at.replace(tzinfo=UTC)
-    ttl = timedelta(minutes=DEFAULT_UPLOAD_TTL_MINUTES)
-    assert before + ttl <= expires_at <= after + ttl
+    assert target.upload_url == f"/images/uploads/{token}"

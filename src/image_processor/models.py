@@ -10,7 +10,6 @@ def utc_now() -> datetime:
 
 
 class ProcessingStatus(StrEnum):
-    awaiting_upload = auto()
     uploaded = auto()
     queued = auto()
     processing = auto()
@@ -25,16 +24,11 @@ class ImageBase(SQLModel):
 
 class Image(ImageBase, table=True):
     id: int = Field(default=None, primary_key=True)
-    status: ProcessingStatus = Field(default=ProcessingStatus.awaiting_upload)
+    status: ProcessingStatus = Field(default=ProcessingStatus.uploaded)
     blob_key: str = Field(max_length=64, unique=True)
-    size_bytes: int | None = Field(default=None, sa_type=BigInteger)
-    width: int | None = Field(default=None)
-    height: int | None = Field(default=None)
-    upload_token: str | None = Field(default=None, max_length=64, unique=True)
-    upload_expires_at: datetime | None = Field(
-        default=None,
-        sa_column=Column(DateTime(timezone=True)),
-    )
+    size_bytes: int = Field(sa_type=BigInteger)
+    width: int
+    height: int
     created_at: datetime = Field(
         default_factory=utc_now,
         sa_column=Column(DateTime(timezone=True), nullable=False),
@@ -61,14 +55,12 @@ class ImageUpdate(SQLModel):
 class ImageRead(ImageBase):
     id: int
     status: ProcessingStatus
-    size_bytes: int | None
-    width: int | None
-    height: int | None
+    size_bytes: int
+    width: int
+    height: int
     created_at: datetime
     updated_at: datetime
 
 
-class UploadReservationRead(SQLModel):
-    id: int
+class UploadTargetRead(SQLModel):
     upload_url: str
-    upload_expires_at: datetime

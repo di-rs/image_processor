@@ -1,4 +1,5 @@
 from collections.abc import Generator
+from datetime import timedelta
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -29,7 +30,11 @@ def session_fixture() -> Generator[Session]:
 
 @pytest.fixture(name="blob_storage")
 def blob_storage_fixture(tmp_path: Path) -> BlobStorage:
-    return BlobStorage(tmp_path)
+    return BlobStorage(
+        tmp_path,
+        secret="test-secret",
+        upload_ttl=timedelta(minutes=15),
+    )
 
 
 @pytest.fixture(name="channel")

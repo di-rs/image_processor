@@ -8,6 +8,7 @@ from .domain.images import (
     ImageDomainError,
     InvalidImageStateError,
     UploadExpiredError,
+    UploadNotFoundError,
 )
 from .services.blob_storage import BlobStorageError
 
@@ -61,6 +62,8 @@ def register_exception_handlers(app: FastAPI) -> None:
 
 
 def _domain_error_status(exc: ImageDomainError) -> int:
+    if isinstance(exc, UploadNotFoundError):
+        return status.HTTP_404_NOT_FOUND
     if isinstance(exc, UploadExpiredError):
         return status.HTTP_410_GONE
     if isinstance(exc, InvalidImageStateError):

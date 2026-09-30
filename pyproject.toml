@@ -10,6 +10,7 @@ requires-python = ">=3.14"
 dependencies = [
     "alembic>=1.20.0",
     "fastapi[standard]>=0.142.0",
+    "itsdangerous>=2.2.0",
     "pika>=1.4.4",
     "psycopg[binary]>=3.3.6",
     "pydantic>=2.13.5",

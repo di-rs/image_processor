@@ -11,7 +11,7 @@ from ..models import (
     ImageRead,
     ImageUpdate,
     ProcessingStatus,
-    UploadReservationRead,
+    UploadTargetRead,
 )
 from ..services import images as images_service
 
@@ -48,16 +48,14 @@ def list_images(
 @router.post(
     "",
     status_code=status.HTTP_201_CREATED,
-    response_model=UploadReservationRead,
+    response_model=UploadTargetRead,
 )
-def reserve_upload(
+def create_upload_target(
     payload: ImageCreate,
-    session: SessionDep,
     blob_storage: BlobStorageDep,
-) -> UploadReservationRead:
-    logger.info("Reserving upload filename=%s", payload.filename)
-    return images_service.reserve_upload(
-        session,
+) -> UploadTargetRead:
+    logger.info("Creating upload target filename=%s", payload.filename)
+    return images_service.create_upload_target(
         blob_storage,
         filename=payload.filename,
         content_type=payload.content_type,

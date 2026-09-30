@@ -1,6 +1,6 @@
 from sqlmodel import Session, col, select
 
-from .domain.images import PreuploadedImage
+from .domain.images import UploadedImage
 from .models import Image, ImageUpdate, ProcessingStatus
 
 
@@ -27,14 +27,19 @@ def get_image(session: Session, image_id: int) -> Image | None:
     return image
 
 
-def create_image(session: Session, reservation: PreuploadedImage) -> Image:
+def create_image(
+    session: Session,
+    uploaded: UploadedImage,
+    blob_key: str,
+) -> Image:
     image = Image(
-        filename=reservation.filename,
-        content_type=reservation.content_type,
-        blob_key=reservation.blob_key,
-        status=ProcessingStatus.awaiting_upload,
-        upload_token=reservation.upload_token,
-        upload_expires_at=reservation.upload_expires_at,
+        filename=uploaded.filename,
+        content_type=uploaded.content_type,
+        blob_key=blob_key,
+        status=ProcessingStatus(uploaded.status),
+        size_bytes=uploaded.size_bytes,
+        width=uploaded.width,
+        height=uploaded.height,
     )
     session.add(image)
     session.commit()
