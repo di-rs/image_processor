@@ -8,13 +8,16 @@ from . import crud
 from .database import get_session
 from .models import Image
 from .rabbitmq import get_channel
+from .services.blob_storage import BlobStorage, get_blob_storage
 
 SessionDep = Annotated[Session, Depends(get_session)]
 
-RabbitChannel = Annotated[
+RabbitChannelDep = Annotated[
     BlockingChannel,
     Depends(get_channel),
 ]
+
+BlobStorageDep = Annotated[BlobStorage, Depends(get_blob_storage)]
 
 
 def get_image_or_404(image_id: int, session: SessionDep) -> Image:

@@ -4,7 +4,7 @@ from typing import Annotated
 from fastapi import APIRouter, Query, status
 
 from .. import crud
-from ..dependencies import ImageDep, SessionDep
+from ..dependencies import BlobStorageDep, ImageDep, SessionDep
 from ..models import Image, ImageRead, ImageUpdate, ProcessingStatus
 from ..services import images as images_service
 
@@ -42,6 +42,10 @@ def update_image(
     "/{image_id}",
     status_code=status.HTTP_204_NO_CONTENT,
 )
-def delete_image(image: ImageDep, session: SessionDep) -> None:
+def delete_image(
+    image: ImageDep,
+    session: SessionDep,
+    blob_storage: BlobStorageDep,
+) -> None:
     logger.info("Deleting image image_id=%s", image.id)
-    images_service.delete_image(session, image)
+    images_service.delete_image(session, image, blob_storage)
