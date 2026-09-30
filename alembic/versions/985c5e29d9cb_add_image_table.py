@@ -26,7 +26,7 @@ def upgrade() -> None:
     sa.Column('status', sa.Enum('awaiting_upload', 'uploaded', 'queued', 'processing', 'failed', 'finished', name='processingstatus'), nullable=False),
     sa.Column('filename', sa.String(length=255), nullable=False),
     sa.Column('content_type', sa.String(length=127), nullable=False),
-    sa.Column('storage_path', sa.String(length=1024), nullable=True),
+    sa.Column('blob_key', sa.String(length=64), nullable=False),
     sa.Column('size_bytes', sa.BigInteger(), nullable=True),
     sa.Column('width', sa.Integer(), nullable=True),
     sa.Column('height', sa.Integer(), nullable=True),
@@ -35,6 +35,7 @@ def upgrade() -> None:
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
     sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('blob_key'),
     sa.UniqueConstraint('upload_token')
     )
     # ### end Alembic commands ###

@@ -48,12 +48,12 @@ class ImageDomainModel(BaseModel):
 
     filename: str = Field(min_length=1, max_length=255)
     content_type: str = Field(min_length=1, max_length=127)
-    storage_path: str = Field(min_length=1, max_length=1024)
+    blob_key: str = Field(min_length=1, max_length=64)
 
     @field_validator(
         "filename",
         "content_type",
-        "storage_path",
+        "blob_key",
         mode="before",
     )
     @classmethod
@@ -99,7 +99,6 @@ class PreuploadedImage(ImageDomainModel):
         *,
         filename: str,
         content_type: str,
-        storage_path: str,
         ttl: timedelta,
         now: datetime | None = None,
     ) -> "PreuploadedImage":
@@ -111,7 +110,7 @@ class PreuploadedImage(ImageDomainModel):
         return cls(
             filename=filename,
             content_type=content_type,
-            storage_path=storage_path,
+            blob_key=token_urlsafe(32),
             upload_token=token_urlsafe(32),
             upload_expires_at=expires_at,
         )
@@ -134,7 +133,7 @@ class PreuploadedImage(ImageDomainModel):
         return UploadedImage(
             filename=self.filename,
             content_type=self.content_type,
-            storage_path=self.storage_path,
+            blob_key=self.blob_key,
             size_bytes=size_bytes,
             width=width,
             height=height,

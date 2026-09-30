@@ -13,4 +13,4 @@ def test_reserve_upload(client: TestClient) -> None:
     assert body["upload_url"].startswith("/images/uploads/")
     assert body["upload_expires_at"]
     assert "upload_token" not in body
-    assert "storage_path" not in body
+    assert "blob_key" not in body

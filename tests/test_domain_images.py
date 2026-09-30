@@ -19,7 +19,6 @@ def _reservation(**overrides: object) -> PreuploadedImage:
     values: dict[str, object] = {
         "filename": "cat.png",
         "content_type": "image/png",
-        "storage_path": "/data/images/token",
         "ttl": TTL,
         "now": NOW,
     }
@@ -32,9 +31,10 @@ def test_create_reserves_a_token_and_expiry() -> None:
 
     assert reservation.filename == "cat.png"
     assert reservation.content_type == "image/png"
-    assert reservation.storage_path == "/data/images/token"
     assert reservation.upload_expires_at == NOW + TTL
+    assert 1 <= len(reservation.blob_key) <= 64
     assert 1 <= len(reservation.upload_token) <= 64
+    assert reservation.blob_key != reservation.upload_token
 
 
 def test_create_rejects_invalid_reservation_data() -> None:
@@ -55,7 +55,7 @@ def test_upload_returns_an_uploaded_image() -> None:
     assert isinstance(image, UploadedImage)
     assert image.status is ImageStatus.uploaded
     assert image.filename == reservation.filename
-    assert image.storage_path == reservation.storage_path
+    assert image.blob_key == reservation.blob_key
     assert image.size_bytes == 128
     assert image.width == 10
     assert image.height == 20

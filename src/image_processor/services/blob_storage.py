@@ -1,6 +1,5 @@
 from functools import lru_cache
 from pathlib import Path
-from secrets import token_urlsafe
 
 from ..config import get_settings
 
@@ -13,34 +12,35 @@ class BlobStorage:
     def __init__(self, storage_dir: Path) -> None:
         self._storage_dir = storage_dir
 
-    def reserve_path(self, filename: str) -> str:
-        name = Path(filename.strip()).name
-        if not name or name in {".", ".."}:
-            raise BlobStorageError(f"Invalid filename filename={filename}")
-        root = self._storage_dir.resolve()
-        path = (root / token_urlsafe(16) / name).resolve()
-        if not path.is_relative_to(root):
-            raise BlobStorageError(
-                f"Refusing to reserve file outside storage root path={path}"
-            )
-        return str(path)
+    def path_for(self, blob_key: str) -> Path:
+        return self._storage_dir / blob_key
 
-    def delete(self, storage_path: str | None) -> None:
-        if storage_path is None:
-            return
+    def create_upload_url(self, upload_token: str) -> str:
+        return f"/images/uploads/{upload_token}"
 
-        root = self._storage_dir.resolve()
+    def save(self, blob_key: str, data: bytes) -> int:
+        if not data:
+            raise BlobStorageError("Refusing to save an empty file")
+
+        path = self.path_for(blob_key)
         try:
-            resolved = Path(storage_path).resolve()
-            if not resolved.is_relative_to(root):
-                raise BlobStorageError(
-                    "Refusing to delete file outside storage root"
-                    f" path={storage_path}"
-                )
-            resolved.unlink(missing_ok=True)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(data)
         except OSError as exc:
             raise BlobStorageError(
-                f"Failed to delete stored file path={storage_path}"
+                f"Failed to save file blob_key={blob_key}"
+            ) from exc
+        return len(data)
+
+    def delete(self, blob_key: str | None) -> None:
+        if blob_key is None:
+            return
+
+        try:
+            self.path_for(blob_key).unlink(missing_ok=True)
+        except OSError as exc:
+            raise BlobStorageError(
+                f"Failed to delete stored file blob_key={blob_key}"
             ) from exc
 
 

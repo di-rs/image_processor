@@ -1,6 +1,5 @@
 import logging
-from datetime import datetime
-from typing import Annotated, cast
+from typing import Annotated
 
 from fastapi import APIRouter, Query, status
 
@@ -57,16 +56,11 @@ def reserve_upload(
     blob_storage: BlobStorageDep,
 ) -> UploadReservationRead:
     logger.info("Reserving upload filename=%s", payload.filename)
-    image = images_service.reserve_upload(
+    return images_service.reserve_upload(
         session,
         blob_storage,
         filename=payload.filename,
         content_type=payload.content_type,
-    )
-    return UploadReservationRead(
-        id=cast(int, image.id),
-        upload_url=f"/images/uploads/{cast(str, image.upload_token)}",
-        upload_expires_at=cast(datetime, image.upload_expires_at),
     )
 
 

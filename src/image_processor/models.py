@@ -24,9 +24,9 @@ class ImageBase(SQLModel):
 
 
 class Image(ImageBase, table=True):
-    id: int | None = Field(default=None, primary_key=True)
+    id: int = Field(default=None, primary_key=True)
     status: ProcessingStatus = Field(default=ProcessingStatus.awaiting_upload)
-    storage_path: str | None = Field(default=None, max_length=1024)
+    blob_key: str = Field(max_length=64, unique=True)
     size_bytes: int | None = Field(default=None, sa_type=BigInteger)
     width: int | None = Field(default=None)
     height: int | None = Field(default=None)

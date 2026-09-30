@@ -1,5 +1,6 @@
 from sqlmodel import Session, col, select
 
+from .domain.images import PreuploadedImage
 from .models import Image, ImageUpdate, ProcessingStatus
 
 
@@ -23,6 +24,21 @@ def list_images(
 
 def get_image(session: Session, image_id: int) -> Image | None:
     image = session.get(Image, image_id)
+    return image
+
+
+def create_image(session: Session, reservation: PreuploadedImage) -> Image:
+    image = Image(
+        filename=reservation.filename,
+        content_type=reservation.content_type,
+        blob_key=reservation.blob_key,
+        status=ProcessingStatus.awaiting_upload,
+        upload_token=reservation.upload_token,
+        upload_expires_at=reservation.upload_expires_at,
+    )
+    session.add(image)
+    session.commit()
+    session.refresh(image)
     return image
 
 
