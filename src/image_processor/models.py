@@ -11,6 +11,7 @@ def utc_now() -> datetime:
 
 class ProcessingStatus(StrEnum):
     pending_upload = auto()
+    uploading = auto()
     uploaded = auto()
     queued = auto()
     processing = auto()
@@ -63,6 +64,7 @@ class ImageUpdate(SQLModel):
 
 
 class ImageRead(ImageBase):
+    original_url: str | None = None
     id: int
     status: ProcessingStatus
     size_bytes: int
@@ -70,3 +72,13 @@ class ImageRead(ImageBase):
     height: int | None
     created_at: datetime
     updated_at: datetime
+
+    @classmethod
+    def from_image(cls, image: Image, *, original_url: str) -> "ImageRead":
+        result = cls.model_validate(image)
+        if image.blob_key is not None and image.status not in {
+            ProcessingStatus.pending_upload,
+            ProcessingStatus.uploading,
+        }:
+            result.original_url = original_url
+        return result

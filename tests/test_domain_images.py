@@ -12,8 +12,7 @@ def _uploaded(**overrides: object) -> UploadedImage:
         "filename": "cat.png",
         "content_type": "image/png",
         "size_bytes": 128,
-        "width": 10,
-        "height": 20,
+
         "status": ImageStatus.uploaded,
     }
     values.update(overrides)

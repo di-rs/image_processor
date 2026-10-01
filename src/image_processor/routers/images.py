@@ -1,12 +1,13 @@
 import logging
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Query, Request, status
+from fastapi import APIRouter, Query, Request, status
+from fastapi.responses import FileResponse
 
 from .. import crud
 from ..dependencies import BlobStorageDep, ImageDep, SessionDep, SettingsDep
+from ..domain.blob_key import BlobKey
 from ..models import (
-    Image,
     ImageRead,
     ImageUpdate,
     ImageUploadCreate,
@@ -58,38 +59,66 @@ def create_image_upload(
         },
     },
 )
-async def upload_image(blob_key: str, request: Request) -> None:
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Image byte upload is not implemented",
+async def upload_image(
+    blob_key: str,
+    request: Request,
+    session: SessionDep,
+    storage: BlobStorageDep,
+) -> None:
+    await image_service.upload_image(
+        session, BlobKey(blob_key), request.stream(), storage
+    )
+
+
+@router.get("/{image_id}/original", response_class=FileResponse)
+def read_original(image: ImageDep, storage: BlobStorageDep) -> FileResponse:
+    path = image_service.get_original_path(image, storage)
+    return FileResponse(
+        path,
+        media_type="application/octet-stream",
+        filename=image.filename,
+        headers={"X-Content-Type-Options": "nosniff"},
     )
 
 
 @router.get("", response_model=list[ImageRead])
 def list_images(
     session: SessionDep,
+    request: Request,
     status: StatusFilter = None,
     limit: Limit = 50,
     offset: Offset = 0,
-) -> list[Image]:
+) -> list[ImageRead]:
     logger.info(
         "Listing images status=%s limit=%s offset=%s",
         status,
         limit,
         offset,
     )
-    return crud.list_images(
+    images = crud.list_images(
         session,
         statuses=status,
         limit=limit,
         offset=offset,
     )
+    return [
+        ImageRead.from_image(
+            image,
+            original_url=str(
+                request.url_for("read_original", image_id=image.id)
+            ),
+        )
+        for image in images
+    ]
 
 
 @router.get("/{image_id}", response_model=ImageRead)
-def read_image(image: ImageDep) -> Image:
+def read_image(image: ImageDep, request: Request) -> ImageRead:
     logger.info("Reading image image_id=%s", image.id)
-    return image
+    return ImageRead.from_image(
+        image,
+        original_url=str(request.url_for("read_original", image_id=image.id)),
+    )
 
 
 @router.patch("/{image_id}", response_model=ImageRead)
@@ -97,9 +126,14 @@ def update_image(
     image: ImageDep,
     payload: ImageUpdate,
     session: SessionDep,
-) -> Image:
+    request: Request,
+) -> ImageRead:
     logger.info("Updating image image_id=%s", image.id)
-    return crud.update_image(session, image, payload)
+    updated = crud.update_image(session, image, payload)
+    return ImageRead.from_image(
+        updated,
+        original_url=str(request.url_for("read_original", image_id=updated.id)),
+    )
 
 
 @router.delete(
@@ -109,6 +143,7 @@ def update_image(
 def delete_image(
     image: ImageDep,
     session: SessionDep,
+    storage: BlobStorageDep,
 ) -> None:
     logger.info("Deleting image image_id=%s", image.id)
-    crud.delete_image(session, image)
+    image_service.delete_image(session, image, storage)

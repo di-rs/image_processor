@@ -4,9 +4,11 @@ from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError
 
-from .domain.images import (
+from ..domain.images import (
     ImageDomainError,
+    ImageNotFoundError,
     InvalidImageStateError,
+    UploadExpiredError,
 )
 
 logger = logging.getLogger(__name__)
@@ -45,6 +47,10 @@ def register_exception_handlers(app: FastAPI) -> None:
 
 def _domain_error_status(exc: ImageDomainError) -> int:
 
+    if isinstance(exc, ImageNotFoundError):
+        return status.HTTP_404_NOT_FOUND
+    if isinstance(exc, UploadExpiredError):
+        return status.HTTP_410_GONE
     if isinstance(exc, InvalidImageStateError):
         return status.HTTP_409_CONFLICT
     return status.HTTP_422_UNPROCESSABLE_CONTENT

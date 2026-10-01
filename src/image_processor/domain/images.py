@@ -14,6 +14,7 @@ from pydantic import (
 
 class ImageStatus(StrEnum):
     pending_upload = auto()
+    uploading = auto()
     uploaded = auto()
     queued = auto()
     processing = auto()
@@ -26,6 +27,14 @@ class ImageDomainError(Exception):
 
 
 class InvalidImageUploadError(ImageDomainError):
+    pass
+
+
+class UploadExpiredError(ImageDomainError):
+    pass
+
+
+class ImageNotFoundError(ImageDomainError):
     pass
 
 

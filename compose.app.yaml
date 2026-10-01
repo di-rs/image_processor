@@ -2,15 +2,19 @@ services:
   web:
     build: .
     environment:
-      DATABASE_URL: postgresql+psycopg://release_tracker:release_tracker@db:5432/release_tracker
+      DATABASE_URL: postgresql+psycopg://image_processor:image_processor@db:5432/image_processor
+      RABBITMQ_URL: amqp://image_processor:image_processor@rabbitmq:5672
+      BLOB_STORAGE_PATH: /app/data/images
+      UPLOAD_URL_TTL_SECONDS: "${UPLOAD_URL_TTL_SECONDS:-300}"
       DEBUG: "true"
-      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?Set JWT_SECRET_KEY before running compose.app.yaml}
+    volumes:
+      - image_data:/app/data/images
     ports:
       - "8000:8000"
     depends_on:
       db:
         condition: service_healthy
-    command: ["sh", "-c", "alembic upgrade head && fastapi run"]
+    command: ["sh", "-c", "alembic upgrade head && exec fastapi run src/image_processor/main.py --host 0.0.0.0 --port 8000"]
     healthcheck:
       test:
         [
@@ -38,7 +42,7 @@ services:
       timeout: 5s
       retries: 5
     volumes:
-      - postgres_data:/var/lib/postresql/data
+      - postgres_data:/var/lib/postgresql
 
   rabbitmq:
     image: rabbitmq:management
@@ -62,3 +66,4 @@ services:
 volumes:
   postgres_data:
   rabbitmq_data:
+  image_data:

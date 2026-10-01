@@ -6,8 +6,8 @@ from typing import AsyncGenerator
 from fastapi import FastAPI, Request
 
 from . import __version__
+from .app.exception_handlers import register_exception_handlers
 from .config import configure_logging, get_settings
-from .exception_handlers import register_exception_handlers
 from .routers import images
 
 APP_NAME = "Image Processing API"
@@ -46,6 +46,11 @@ async def log_requests(request: Request, call_next):
 
 
 app.include_router(images.router)
+
+
+@app.get("/health")
+def health() -> dict[str, str]:
+    return {"status": "ok"}
 
 
 @app.get("/")

@@ -12,10 +12,10 @@ COPY pyproject.toml uv.lock README.md ./
 COPY src ./src
 COPY alembic.ini ./
 COPY alembic ./alembic
-COPY scripts ./scripts
+
 
 RUN uv sync --frozen --no-dev
 
 EXPOSE 8000
 
-CMD ["fastapi", "run"]
+CMD ["fastapi", "run", "src/image_processor/main.py", "--host", "0.0.0.0", "--port", "8000"]

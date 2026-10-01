@@ -1,11 +1,11 @@
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from image_processor.app.exception_handlers import register_exception_handlers
 from image_processor.domain.images import (
     ImageDomainError,
     InvalidImageStateError,
 )
-from image_processor.exception_handlers import register_exception_handlers
 
 
 def _client_for(error: ImageDomainError) -> TestClient:

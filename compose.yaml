@@ -13,7 +13,7 @@ services:
       timeout: 5s
       retries: 5
     volumes:
-      - postgres_data:/var/lib/postresql/data
+      - postgres_data:/var/lib/postgresql
 
   rabbitmq:
     image: rabbitmq:management

@@ -1,7 +1,12 @@
+from sqlalchemy import update
 from sqlmodel import Session, col, select
 
-from .domain.images import PendingImageUpload, UploadedImage
-from .models import Image, ImageUpdate, ProcessingStatus
+from .domain.blob_key import BlobKey
+from .domain.images import (
+    PendingImageUpload,
+    UploadedImage,
+)
+from .models import Image, ImageUpdate, ProcessingStatus, utc_now
 
 
 def list_images(
@@ -56,6 +61,43 @@ def create_upload(session: Session, pending: PendingImageUpload) -> Image:
     session.commit()
     session.refresh(image)
     return image
+
+
+def claim_upload(session: Session, blob_key: BlobKey) -> Image | None:
+    statement = (
+        update(Image)
+        .where(
+            col(Image.blob_key) == str(blob_key),
+            col(Image.status) == ProcessingStatus.pending_upload,
+            col(Image.upload_expires_at) > utc_now(),
+        )
+        .values(status=ProcessingStatus.uploading)
+        .returning(Image)
+        .execution_options(synchronize_session=False)
+    )
+    image = session.execute(statement).scalar_one_or_none()
+    session.commit()
+    return image
+
+
+def get_image_by_blob_key(session: Session, blob_key: BlobKey) -> Image | None:
+    return session.exec(
+        select(Image).where(col(Image.blob_key) == str(blob_key))
+    ).first()
+
+
+def complete_upload(session: Session, image: Image) -> None:
+    image.status = ProcessingStatus.uploaded
+    image.upload_expires_at = None
+    session.add(image)
+    session.commit()
+
+
+def discard_upload(session: Session, image: Image) -> None:
+    session.rollback()
+    stored_image = session.get(Image, image.id)
+    if stored_image is not None:
+        delete_image(session, stored_image)
 
 
 def update_image(session: Session, image: Image, payload: ImageUpdate) -> Image:
