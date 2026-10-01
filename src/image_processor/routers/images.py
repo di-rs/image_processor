@@ -5,7 +5,13 @@ from fastapi import APIRouter, Query, Request, status
 from fastapi.responses import FileResponse
 
 from .. import crud
-from ..dependencies import BlobStorageDep, ImageDep, SessionDep, SettingsDep
+from ..dependencies import (
+    BlobStorageDep,
+    ImageDep,
+    RabbitMQClientDep,
+    SessionDep,
+    SettingsDep,
+)
 from ..domain.blob_key import BlobKey
 from ..models import (
     ImageRead,
@@ -64,9 +70,10 @@ async def upload_image(
     request: Request,
     session: SessionDep,
     storage: BlobStorageDep,
+    rabbitmq: RabbitMQClientDep,
 ) -> None:
     await image_service.upload_image(
-        session, BlobKey(blob_key), request.stream(), storage
+        session, BlobKey(blob_key), request.stream(), storage, rabbitmq
     )
 
 

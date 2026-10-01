@@ -86,9 +86,7 @@ def get_image_by_blob_key(session: Session, blob_key: BlobKey) -> Image | None:
     ).first()
 
 
-def complete_upload(session: Session, image: Image) -> None:
-    image.status = ProcessingStatus.uploaded
-    image.upload_expires_at = None
+def save_image(session: Session, image: Image) -> None:
     session.add(image)
     session.commit()
 

@@ -1,14 +1,13 @@
 from typing import Annotated
 
 from fastapi import Depends, HTTPException, status
-from pika.adapters.blocking_connection import BlockingChannel
 from sqlmodel import Session
 
 from . import crud
 from .config import Settings, get_settings
 from .database import get_session
 from .models import Image
-from .rabbitmq import get_channel
+from .rabbitmq import RabbitMQClient, get_rabbitmq_client
 from .services.blob_storage import BlobStorage, get_blob_storage
 
 SessionDep = Annotated[Session, Depends(get_session)]
@@ -17,9 +16,9 @@ SettingsDep = Annotated[Settings, Depends(get_settings)]
 
 BlobStorageDep = Annotated[BlobStorage, Depends(get_blob_storage)]
 
-RabbitChannelDep = Annotated[
-    BlockingChannel,
-    Depends(get_channel),
+RabbitMQClientDep = Annotated[
+    RabbitMQClient,
+    Depends(get_rabbitmq_client),
 ]
 
 

@@ -3,7 +3,6 @@ from unittest.mock import MagicMock
 
 import pytest
 from fastapi.testclient import TestClient
-from pika.adapters.blocking_connection import BlockingChannel
 from sqlmodel import Session, SQLModel, create_engine
 from sqlmodel.pool import StaticPool
 
@@ -11,7 +10,11 @@ from image_processor.config import get_settings
 from image_processor.database import get_engine, get_session
 from image_processor.domain.blob_key import BlobKey
 from image_processor.main import app
-from image_processor.rabbitmq import get_channel, get_connection_parameters
+from image_processor.rabbitmq import (
+    RabbitMQClient,
+    get_connection_parameters,
+    get_rabbitmq_client,
+)
 from image_processor.services.blob_storage import BlobStorage, get_blob_storage
 
 
@@ -27,9 +30,9 @@ def session_fixture() -> Generator[Session]:
         yield session
 
 
-@pytest.fixture(name="channel")
-def channel_fixture() -> BlockingChannel:
-    return MagicMock(spec=BlockingChannel)
+@pytest.fixture(name="rabbitmq")
+def rabbitmq_fixture() -> MagicMock:
+    return MagicMock(spec=RabbitMQClient)
 
 
 @pytest.fixture(name="blob_storage")
@@ -42,14 +45,14 @@ def blob_storage_fixture() -> BlobStorage:
 @pytest.fixture(name="client")
 def client_fixture(
     session: Session,
-    channel: BlockingChannel,
+    rabbitmq: MagicMock,
     blob_storage: BlobStorage,
 ) -> Generator[TestClient]:
     def get_session_override() -> Generator[Session]:
         yield session
 
-    def get_channel_override() -> Generator[BlockingChannel]:
-        yield channel
+    def get_rabbitmq_client_override() -> RabbitMQClient:
+        return rabbitmq
 
     def get_blob_storage_override() -> BlobStorage:
         return blob_storage
@@ -57,7 +60,7 @@ def client_fixture(
     app.dependency_overrides[get_blob_storage] = get_blob_storage_override
     app.dependency_overrides[get_session] = get_session_override
 
-    app.dependency_overrides[get_channel] = get_channel_override
+    app.dependency_overrides[get_rabbitmq_client] = get_rabbitmq_client_override
     try:
         with TestClient(app) as client:
             yield client

@@ -19,6 +19,7 @@ from ..models import (
     ProcessingStatus,
     utc_now,
 )
+from ..rabbitmq import RabbitMQClient
 from .blob_storage import BlobStorage
 
 
@@ -78,13 +79,16 @@ async def upload_image(
     blob_key: BlobKey,
     chunks: AsyncIterable[bytes],
     blob_storage: BlobStorage,
+    rabbitmq: RabbitMQClient,
 ) -> None:
     image = claim_upload(session, blob_key)
     stored = False
     try:
         await blob_storage.create_image(blob_key, chunks, image.size_bytes)
         stored = True
-        crud.complete_upload(session, image)
+        image.status = ProcessingStatus.uploaded
+        image.upload_expires_at = None
+        crud.save_image(session, image)
     except BaseException:
         try:
             if stored:
@@ -92,3 +96,7 @@ async def upload_image(
         finally:
             crud.discard_upload(session, image)
         raise
+
+    rabbitmq.publish_image(image.id)
+    image.status = ProcessingStatus.queued
+    crud.save_image(session, image)
