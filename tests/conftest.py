@@ -1,5 +1,4 @@
 from collections.abc import Generator
-
 from unittest.mock import MagicMock
 
 import pytest
@@ -12,6 +11,7 @@ from image_processor.config import get_settings
 from image_processor.database import get_engine, get_session
 from image_processor.main import app
 from image_processor.rabbitmq import get_channel, get_connection_parameters
+from image_processor.services.blob_storage import BlobStorage, get_blob_storage
 
 
 @pytest.fixture(name="session")
@@ -31,10 +31,18 @@ def channel_fixture() -> BlockingChannel:
     return MagicMock(spec=BlockingChannel)
 
 
+@pytest.fixture(name="blob_storage")
+def blob_storage_fixture() -> BlobStorage:
+    storage = MagicMock(spec=BlobStorage)
+    storage.create_key.return_value = "test-blob-key"
+    return storage
+
+
 @pytest.fixture(name="client")
 def client_fixture(
     session: Session,
     channel: BlockingChannel,
+    blob_storage: BlobStorage,
 ) -> Generator[TestClient]:
     def get_session_override() -> Generator[Session]:
         yield session
@@ -42,13 +50,19 @@ def client_fixture(
     def get_channel_override() -> Generator[BlockingChannel]:
         yield channel
 
+    def get_blob_storage_override() -> BlobStorage:
+        return blob_storage
+
+    app.dependency_overrides[get_blob_storage] = get_blob_storage_override
     app.dependency_overrides[get_session] = get_session_override
 
     app.dependency_overrides[get_channel] = get_channel_override
-    client = TestClient(app)
-    yield client
-    app.dependency_overrides.clear()
-    get_settings.cache_clear()
-    get_engine.cache_clear()
-
-    get_connection_parameters.cache_clear()
+    try:
+        with TestClient(app) as client:
+            yield client
+    finally:
+        app.dependency_overrides.clear()
+        get_settings.cache_clear()
+        get_engine.cache_clear()
+        get_blob_storage.cache_clear()
+        get_connection_parameters.cache_clear()

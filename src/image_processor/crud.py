@@ -1,6 +1,6 @@
 from sqlmodel import Session, col, select
 
-from .domain.images import UploadedImage
+from .domain.images import PendingImageUpload, UploadedImage
 from .models import Image, ImageUpdate, ProcessingStatus
 
 
@@ -36,6 +36,21 @@ def create_image(
         content_type=uploaded.content_type,
         status=ProcessingStatus(uploaded.status),
         size_bytes=uploaded.size_bytes,
+    )
+    session.add(image)
+    session.commit()
+    session.refresh(image)
+    return image
+
+
+def create_upload(session: Session, pending: PendingImageUpload) -> Image:
+    image = Image(
+        filename=pending.filename,
+        content_type=pending.content_type,
+        size_bytes=pending.size_bytes,
+        status=ProcessingStatus(pending.status),
+        blob_key=pending.blob_key,
+        upload_expires_at=pending.upload_expires_at,
     )
     session.add(image)
     session.commit()

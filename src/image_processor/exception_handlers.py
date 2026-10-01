@@ -9,7 +9,6 @@ from .domain.images import (
     InvalidImageStateError,
 )
 
-
 logger = logging.getLogger(__name__)
 
 

@@ -1,15 +1,19 @@
+from datetime import datetime
 from enum import StrEnum, auto
+from mimetypes import guess_type
 
 from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
     PositiveInt,
+    ValidationError,
     field_validator,
 )
 
 
 class ImageStatus(StrEnum):
+    pending_upload = auto()
     uploaded = auto()
     queued = auto()
     processing = auto()
@@ -18,6 +22,10 @@ class ImageStatus(StrEnum):
 
 
 class ImageDomainError(Exception):
+    pass
+
+
+class InvalidImageUploadError(ImageDomainError):
     pass
 
 
@@ -43,6 +51,50 @@ class ImageDomainModel(BaseModel):
     @classmethod
     def strip_text(cls, value: object) -> object:
         return _strip_required_text(value)
+
+
+class PendingImageUpload(ImageDomainModel):
+    size_bytes: PositiveInt
+    blob_key: str = Field(min_length=1)
+    upload_expires_at: datetime
+    status: ImageStatus = ImageStatus.pending_upload
+
+    @field_validator("content_type")
+    @classmethod
+    def validate_content_type(cls, value: str) -> str:
+        if not value.startswith("image/") or value in {
+            "image/gif",
+            "image/svg+xml",
+        }:
+            raise InvalidImageUploadError(
+                "Content type must identify an image other than GIF or SVG"
+            )
+        return value
+
+    @staticmethod
+    def create(
+        *,
+        filename: str,
+        size_bytes: int,
+        blob_key: str,
+        upload_expires_at: datetime,
+    ) -> "PendingImageUpload":
+        filename = filename.strip()
+        content_type, encoding = guess_type(filename)
+        if content_type is None or encoding is not None:
+            raise InvalidImageUploadError(
+                "Filename must identify an image other than GIF or SVG"
+            )
+        try:
+            return PendingImageUpload(
+                filename=filename,
+                content_type=content_type,
+                size_bytes=size_bytes,
+                blob_key=blob_key,
+                upload_expires_at=upload_expires_at,
+            )
+        except ValidationError as exc:
+            raise InvalidImageUploadError("Invalid upload metadata") from exc
 
 
 class UploadedImage(ImageDomainModel):
