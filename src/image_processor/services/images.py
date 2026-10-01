@@ -21,7 +21,7 @@ def create_upload(
     pending = PendingImageUpload.create(
         filename=payload.filename,
         size_bytes=payload.size_bytes,
-        blob_key=blob_storage.create_key(),
+        blob_key=str(blob_storage.create_key()),
         upload_expires_at=upload_expires_at,
     )
     return crud.create_upload(session, pending)

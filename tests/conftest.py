@@ -9,6 +9,7 @@ from sqlmodel.pool import StaticPool
 
 from image_processor.config import get_settings
 from image_processor.database import get_engine, get_session
+from image_processor.domain.blob_key import BlobKey
 from image_processor.main import app
 from image_processor.rabbitmq import get_channel, get_connection_parameters
 from image_processor.services.blob_storage import BlobStorage, get_blob_storage
@@ -34,7 +35,7 @@ def channel_fixture() -> BlockingChannel:
 @pytest.fixture(name="blob_storage")
 def blob_storage_fixture() -> BlobStorage:
     storage = MagicMock(spec=BlobStorage)
-    storage.create_key.return_value = "test-blob-key"
+    storage.create_key.return_value = BlobKey("test-blob-key")
     return storage
 
 

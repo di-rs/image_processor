@@ -1,5 +1,6 @@
 import logging
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic import PositiveInt
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -7,6 +8,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 DEFAULT_DATABASE_URL = "postgresql+psycopg://image_processor:image_processor@localhost:5432/image_processor"
 DEFAULT_RABBITMQ_URL = "amqp://image_processor:image_processor@localhost:5672"
 DEFAULT_UPLOAD_URL_TTL_SECONDS = 300
+DEFAULT_BLOB_STORAGE_PATH = Path("./data/images")
 
 
 LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s %(message)s"
@@ -17,6 +19,7 @@ class Settings(BaseSettings):
     rabbitmq_url: str = DEFAULT_RABBITMQ_URL
 
     upload_url_ttl_seconds: PositiveInt = DEFAULT_UPLOAD_URL_TTL_SECONDS
+    blob_storage_path: Path = DEFAULT_BLOB_STORAGE_PATH
 
     debug: bool = False
 
