@@ -21,14 +21,6 @@ class ImageDomainError(Exception):
     pass
 
 
-class UploadExpiredError(ImageDomainError):
-    pass
-
-
-class UploadNotFoundError(ImageDomainError):
-    pass
-
-
 class InvalidImageStateError(ImageDomainError):
     pass
 
@@ -57,8 +49,6 @@ class UploadedImage(ImageDomainModel):
     """An image whose bytes are already in storage."""
 
     size_bytes: PositiveInt
-    width: PositiveInt
-    height: PositiveInt
     status: ImageStatus = ImageStatus.uploaded
 
     def enqueue(self) -> "UploadedImage":

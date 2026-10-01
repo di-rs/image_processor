@@ -25,10 +25,8 @@ class ImageBase(SQLModel):
 class Image(ImageBase, table=True):
     id: int = Field(default=None, primary_key=True)
     status: ProcessingStatus = Field(default=ProcessingStatus.uploaded)
-    blob_key: str = Field(max_length=64, unique=True)
+
     size_bytes: int = Field(sa_type=BigInteger)
-    width: int
-    height: int
     created_at: datetime = Field(
         default_factory=utc_now,
         sa_column=Column(DateTime(timezone=True), nullable=False),
@@ -41,10 +39,6 @@ class Image(ImageBase, table=True):
             onupdate=utc_now,
         ),
     )
-
-
-class ImageCreate(ImageBase):
-    pass
 
 
 class ImageUpdate(SQLModel):
@@ -60,7 +54,3 @@ class ImageRead(ImageBase):
     height: int
     created_at: datetime
     updated_at: datetime
-
-
-class UploadTargetRead(SQLModel):
-    upload_url: str

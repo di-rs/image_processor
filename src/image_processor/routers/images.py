@@ -4,16 +4,14 @@ from typing import Annotated
 from fastapi import APIRouter, Query, status
 
 from .. import crud
-from ..dependencies import BlobStorageDep, ImageDep, SessionDep
+from ..dependencies import ImageDep, SessionDep
 from ..models import (
     Image,
-    ImageCreate,
     ImageRead,
     ImageUpdate,
     ProcessingStatus,
-    UploadTargetRead,
 )
-from ..services import images as images_service
+
 
 logger = logging.getLogger(__name__)
 
@@ -45,23 +43,6 @@ def list_images(
     )
 
 
-@router.post(
-    "",
-    status_code=status.HTTP_201_CREATED,
-    response_model=UploadTargetRead,
-)
-def create_upload_target(
-    payload: ImageCreate,
-    blob_storage: BlobStorageDep,
-) -> UploadTargetRead:
-    logger.info("Creating upload target filename=%s", payload.filename)
-    return images_service.create_upload_target(
-        blob_storage,
-        filename=payload.filename,
-        content_type=payload.content_type,
-    )
-
-
 @router.get("/{image_id}", response_model=ImageRead)
 def read_image(image: ImageDep) -> Image:
     logger.info("Reading image image_id=%s", image.id)
@@ -85,7 +66,6 @@ def update_image(
 def delete_image(
     image: ImageDep,
     session: SessionDep,
-    blob_storage: BlobStorageDep,
 ) -> None:
     logger.info("Deleting image image_id=%s", image.id)
-    images_service.delete_image(session, image, blob_storage)
+    crud.delete_image(session, image)

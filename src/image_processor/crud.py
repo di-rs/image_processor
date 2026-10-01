@@ -30,16 +30,12 @@ def get_image(session: Session, image_id: int) -> Image | None:
 def create_image(
     session: Session,
     uploaded: UploadedImage,
-    blob_key: str,
 ) -> Image:
     image = Image(
         filename=uploaded.filename,
         content_type=uploaded.content_type,
-        blob_key=blob_key,
         status=ProcessingStatus(uploaded.status),
         size_bytes=uploaded.size_bytes,
-        width=uploaded.width,
-        height=uploaded.height,
     )
     session.add(image)
     session.commit()

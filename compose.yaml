@@ -33,6 +33,7 @@ services:
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
 
+
 volumes:
   postgres_data:
   rabbitmq_data:
