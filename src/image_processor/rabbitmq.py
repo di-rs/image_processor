@@ -1,11 +1,12 @@
-import json
 from collections.abc import Generator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from functools import lru_cache
 
 import pika
 from fastapi import Depends
 from pika.adapters.blocking_connection import BlockingChannel
+from pydantic import BaseModel, Field
 
 from .config import get_settings
 
@@ -18,6 +19,10 @@ def get_connection_parameters() -> pika.URLParameters:
 IMAGE_PROCESSING_QUEUE = "image_processing"
 
 
+class ImageProcessingMessage(BaseModel):
+    image_id: int = Field(gt=0, strict=True)
+
+
 @dataclass
 class RabbitMQClient:
     _channel: BlockingChannel
@@ -28,7 +33,9 @@ class RabbitMQClient:
         self._channel.basic_publish(
             exchange="",
             routing_key=IMAGE_PROCESSING_QUEUE,
-            body=json.dumps({"image_id": image_id}).encode(),
+            body=ImageProcessingMessage(image_id=image_id)
+            .model_dump_json()
+            .encode(),
             properties=pika.BasicProperties(
                 content_type="application/json",
                 delivery_mode=2,
@@ -37,19 +44,25 @@ class RabbitMQClient:
         )
 
 
-def get_channel() -> Generator[BlockingChannel, None, None]:
+@contextmanager
+def open_channel() -> Generator[BlockingChannel, None, None]:
     connection = pika.BlockingConnection(get_connection_parameters())
 
-    channel = connection.channel()
-
     try:
-        yield channel
+        channel = connection.channel()
+        try:
+            yield channel
+        finally:
+            if channel.is_open:
+                channel.close()
     finally:
-        if channel.is_open:
-            channel.close()
-
         if connection.is_open:
             connection.close()
+
+
+def get_channel() -> Generator[BlockingChannel, None, None]:
+    with open_channel() as channel:
+        yield channel
 
 
 def get_rabbitmq_client(

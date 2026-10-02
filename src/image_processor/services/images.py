@@ -98,5 +98,4 @@ async def upload_image(
         raise
 
     rabbitmq.publish_image(image.id)
-    image.status = ProcessingStatus.queued
-    crud.save_image(session, image)
+    crud.mark_image_queued(session, image.id)

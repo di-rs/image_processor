@@ -1,142 +1,185 @@
+from collections.abc import Callable
 from datetime import timedelta
-from pathlib import Path
-from typing import cast
-from unittest.mock import MagicMock, Mock
+from unittest.mock import MagicMock
 
 import pytest
 from fastapi.testclient import TestClient
 from pika.exceptions import AMQPConnectionError
-from pydantic import TypeAdapter
 from sqlmodel import Session, select
 
 from image_processor.domain.blob_key import BlobKey
-from image_processor.main import app
-from image_processor.models import (
-    Image,
-    ImageRead,
-    ImageUploadRead,
-    ProcessingStatus,
-    utc_now,
-)
-from image_processor.services.blob_storage import BlobStorage, get_blob_storage
+from image_processor.models import Image, ProcessingStatus, utc_now
+from image_processor.services.blob_storage import BlobStorage
 
 
-@pytest.fixture
-def storage(client: TestClient, tmp_path: Path) -> BlobStorage:
-    assert client.app is app
-    storage = BlobStorage(tmp_path)
-    app.dependency_overrides[get_blob_storage] = lambda: storage
-    return storage
-
-
-def reserve(client: TestClient, size: int) -> str:
-    response = client.post(
-        "/images/uploads", json={"filename": "photo.png", "size_bytes": size}
-    )
-    assert response.status_code == 201
-    return ImageUploadRead.model_validate_json(response.content).upload_url
-
-
-def test_upload_and_reuse(
+def test_upload_stores_bytes_and_publishes_after_commit(
     client: TestClient,
     session: Session,
-    storage: BlobStorage,
+    blob_storage: BlobStorage,
     rabbitmq: MagicMock,
+    reserve_upload: Callable[..., str],
 ) -> None:
-    url = reserve(client, 3)
+    url = reserve_upload()
 
     def check_publish(image_id: int) -> None:
-        assert image_id == session.exec(select(Image)).one().id
-        assert (
-            session.exec(select(Image)).one().status
-            == ProcessingStatus.uploaded
-        )
+        image = session.exec(select(Image)).one()
+        assert image_id == image.id
+        assert image.status == ProcessingStatus.uploaded
+        assert image.upload_expires_at is None
+        assert image.blob_key is not None
+        assert (blob_storage.path / image.blob_key).read_bytes() == b"abc"
 
-    publish_image = cast(Mock, rabbitmq.publish_image)
-    publish_image.side_effect = check_publish
-    assert client.put(url, content=b"abc").status_code == 204
+    rabbitmq.publish_image.side_effect = check_publish
+    response = client.put(url, content=b"abc")
+    assert response.status_code == 204
+    assert response.content == b""
     image = session.exec(select(Image)).one()
+    session.refresh(image)
     assert image.status == ProcessingStatus.queued
-    publish_image.assert_called_once_with(image.id)
-    assert image.blob_key is not None
-    assert (storage.path / image.blob_key).read_bytes() == b"abc"
+    rabbitmq.publish_image.assert_called_once_with(image.id)
     assert image.width is None
-    assert client.put(url, content=b"xyz").status_code == 409
-    assert (storage.path / image.blob_key).read_bytes() == b"abc"
-    publish_image.assert_called_once()
+    assert image.height is None
+
+
+def test_upload_url_cannot_be_reused(
+    client: TestClient,
+    session: Session,
+    blob_storage: BlobStorage,
+    rabbitmq: MagicMock,
+    reserve_upload: Callable[..., str],
+) -> None:
+    url = reserve_upload()
+    response = client.put(url, content=b"abc")
+    assert response.status_code == 204
+    image = session.exec(select(Image)).one()
+    assert image.blob_key is not None
+
+    response = client.put(url, content=b"xyz")
+    assert response.status_code == 409
+    assert response.json() == {"detail": "Upload URL has already been used"}
+    assert (blob_storage.path / image.blob_key).read_bytes() == b"abc"
+    session.refresh(image)
+    assert image.status == ProcessingStatus.queued
+    rabbitmq.publish_image.assert_called_once_with(image.id)
 
 
 def test_publish_failure_preserves_upload(
     client: TestClient,
     session: Session,
-    storage: BlobStorage,
+    blob_storage: BlobStorage,
     rabbitmq: MagicMock,
+    reserve_upload: Callable[..., str],
 ) -> None:
-    url = reserve(client, 3)
-    publish_image = cast(Mock, rabbitmq.publish_image)
-    publish_image.side_effect = AMQPConnectionError()
+    url = reserve_upload()
+    rabbitmq.publish_image.side_effect = AMQPConnectionError()
+    # TestClient propagates unhandled exceptions rather than returning HTTP 500.
     with pytest.raises(AMQPConnectionError):
-        _ = client.put(url, content=b"abc")
+        client.put(url, content=b"abc")
     image = session.exec(select(Image)).one()
+    session.refresh(image)
     assert image.status == ProcessingStatus.uploaded
     assert image.upload_expires_at is None
-    assert (storage.path / str(image.blob_key)).read_bytes() == b"abc"
+    assert image.blob_key is not None
+    assert (blob_storage.path / image.blob_key).read_bytes() == b"abc"
+    rabbitmq.publish_image.assert_called_once_with(image.id)
 
 
-@pytest.mark.parametrize("body", [b"ab", b"abcd"])
-def test_wrong_size_removes_image(
-    client: TestClient, session: Session, storage: BlobStorage, body: bytes
+@pytest.mark.parametrize(
+    ("body", "detail"),
+    [
+        (b"ab", "Uploaded bytes do not match the declared size"),
+        (b"abcd", "Uploaded bytes exceed the declared size"),
+    ],
+)
+def test_wrong_size_removes_image_and_temporary_bytes(
+    client: TestClient,
+    session: Session,
+    blob_storage: BlobStorage,
+    rabbitmq: MagicMock,
+    reserve_upload: Callable[..., str],
+    body: bytes,
+    detail: str,
 ) -> None:
-    url = reserve(client, 3)
-    assert client.put(url, content=body).status_code == 422
+    url = reserve_upload()
+    response = client.put(url, content=body)
+    assert response.status_code == 422
+    assert response.json() == {"detail": detail}
     assert session.exec(select(Image)).all() == []
-    assert list(storage.path.iterdir()) == []
-    assert client.put(url, content=b"abc").status_code == 404
+    assert list(blob_storage.path.iterdir()) == []
+    rabbitmq.publish_image.assert_not_called()
+    response = client.put(url, content=b"abc")
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Upload not found"}
 
 
-@pytest.mark.usefixtures("storage")
-def test_expired_upload(client: TestClient, session: Session) -> None:
-    url = reserve(client, 3)
+def test_expired_upload_is_removed_without_publishing(
+    client: TestClient,
+    session: Session,
+    blob_storage: BlobStorage,
+    rabbitmq: MagicMock,
+    reserve_upload: Callable[..., str],
+) -> None:
+    url = reserve_upload()
     image = session.exec(select(Image)).one()
     image.upload_expires_at = utc_now() - timedelta(seconds=1)
     session.add(image)
     session.commit()
-    assert client.put(url, content=b"abc").status_code == 410
+
+    response = client.put(url, content=b"abc")
+    assert response.status_code == 410
+    assert response.json() == {"detail": "Upload URL has expired"}
     assert session.exec(select(Image)).all() == []
+    assert list(blob_storage.path.iterdir()) == []
+    rabbitmq.publish_image.assert_not_called()
 
 
-@pytest.mark.usefixtures("storage")
-def test_already_claimed_upload(client: TestClient, session: Session) -> None:
-    url = reserve(client, 3)
+def test_already_claimed_upload_is_not_modified(
+    client: TestClient,
+    session: Session,
+    rabbitmq: MagicMock,
+    reserve_upload: Callable[..., str],
+) -> None:
+    url = reserve_upload()
     image = session.exec(select(Image)).one()
     image.status = ProcessingStatus.uploading
     session.add(image)
     session.commit()
-    assert client.put(url, content=b"abc").status_code == 409
-    assert (
-        session.exec(select(Image)).one().status == ProcessingStatus.uploading
-    )
+
+    response = client.put(url, content=b"abc")
+    assert response.status_code == 409
+    assert response.json() == {"detail": "Upload URL has already been used"}
+    session.refresh(image)
+    assert image.status == ProcessingStatus.uploading
+    rabbitmq.publish_image.assert_not_called()
 
 
-@pytest.mark.usefixtures("storage")
-def test_public_original_url(client: TestClient, session: Session) -> None:
-    upload_url = reserve(client, 3)
+def test_original_url_becomes_available_after_upload(
+    client: TestClient,
+    session: Session,
+    reserve_upload: Callable[..., str],
+) -> None:
+    upload_url = reserve_upload()
     image = session.exec(select(Image)).one()
-    metadata = ImageRead.model_validate_json(
-        client.get(f"/images/{image.id}").content
-    )
-    assert metadata.original_url is None
-    assert client.get(f"/images/{image.id}/original").status_code == 404
-    assert client.put(upload_url, content=b"abc").status_code == 204
-    metadata = ImageRead.model_validate_json(
-        client.get(f"/images/{image.id}").content
-    )
-    original_url = metadata.original_url
-    assert original_url is not None
-    images = TypeAdapter(list[ImageRead]).validate_json(
-        client.get("/images").content
-    )
-    assert images[0].original_url == original_url
+    response = client.get(f"/images/{image.id}")
+    assert response.status_code == 200
+    assert response.json()["original_url"] is None
+    response = client.get(f"/images/{image.id}/original")
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Image bytes not available"}
+
+    response = client.put(upload_url, content=b"abc")
+    assert response.status_code == 204
+    response = client.get(f"/images/{image.id}")
+    assert response.status_code == 200
+    original_url = response.json()["original_url"]
+    assert original_url == f"http://testserver/images/{image.id}/original"
+    response = client.get("/images")
+    assert response.status_code == 200
+    images = response.json()
+    assert len(images) == 1
+    assert images[0]["id"] == image.id
+    assert images[0]["original_url"] == original_url
+
     response = client.get(original_url)
     assert response.status_code == 200
     assert response.content == b"abc"
@@ -144,24 +187,33 @@ def test_public_original_url(client: TestClient, session: Session) -> None:
     assert response.headers["x-content-type-options"] == "nosniff"
 
 
-def test_upload_then_delete(
-    client: TestClient, session: Session, storage: BlobStorage
+def test_delete_uploaded_image_removes_stored_bytes(
+    client: TestClient,
+    session: Session,
+    blob_storage: BlobStorage,
+    reserve_upload: Callable[..., str],
 ) -> None:
-    url = reserve(client, 3)
-    assert client.put(url, content=b"abc").status_code == 204
+    url = reserve_upload()
+    response = client.put(url, content=b"abc")
+    assert response.status_code == 204
     image = session.exec(select(Image)).one()
-    path = storage.path / str(image.blob_key)
+    assert image.blob_key is not None
+    path = blob_storage.path / image.blob_key
     assert path.exists()
-    assert client.delete(f"/images/{image.id}").status_code == 204
+
+    response = client.delete(f"/images/{image.id}")
+    assert response.status_code == 204
+    assert response.content == b""
     assert not path.exists()
     assert session.exec(select(Image)).all() == []
+    response = client.get(f"/images/{image.id}")
+    assert response.status_code == 404
 
 
-@pytest.mark.usefixtures("storage")
-def test_unknown_upload(client: TestClient) -> None:
-    assert (
-        client.put(
-            f"/images/uploads/{BlobKey.create()}", content=b"abc"
-        ).status_code
-        == 404
-    )
+def test_unknown_upload_returns_404(
+    client: TestClient, rabbitmq: MagicMock
+) -> None:
+    response = client.put(f"/images/uploads/{BlobKey.create()}", content=b"abc")
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Upload not found"}
+    rabbitmq.publish_image.assert_not_called()

@@ -91,6 +91,19 @@ def save_image(session: Session, image: Image) -> None:
     session.commit()
 
 
+def mark_image_queued(session: Session, image_id: int) -> None:
+    session.execute(
+        update(Image)
+        .where(
+            col(Image.id) == image_id,
+            col(Image.status) == ProcessingStatus.uploaded,
+        )
+        .values(status=ProcessingStatus.queued)
+        .execution_options(synchronize_session=False)
+    )
+    session.commit()
+
+
 def discard_upload(session: Session, image: Image) -> None:
     session.rollback()
     stored_image = session.get(Image, image.id)

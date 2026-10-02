@@ -116,3 +116,30 @@ class UploadedImage(ImageDomainModel):
         if self.status is not ImageStatus.uploaded:
             raise InvalidImageStateError("Only an uploaded image can be queued")
         return self.model_copy(update={"status": ImageStatus.queued})
+
+    def start_processing(self) -> "UploadedImage":
+        if self.status in {ImageStatus.finished, ImageStatus.failed}:
+            raise InvalidImageStateError(
+                f"Cannot process an image with status '{self.status}'"
+            )
+        if self.status not in {
+            ImageStatus.uploaded,
+            ImageStatus.queued,
+            ImageStatus.processing,
+        }:
+            raise InvalidImageStateError(
+                "Only an image with uploaded bytes can be processed"
+            )
+        return self.model_copy(update={"status": ImageStatus.processing})
+
+    def finish_processing(self) -> "UploadedImage":
+        self._require_processing()
+        return self.model_copy(update={"status": ImageStatus.finished})
+
+    def fail_processing(self) -> "UploadedImage":
+        self._require_processing()
+        return self.model_copy(update={"status": ImageStatus.failed})
+
+    def _require_processing(self) -> None:
+        if self.status is not ImageStatus.processing:
+            raise InvalidImageStateError("Image is not being processed")

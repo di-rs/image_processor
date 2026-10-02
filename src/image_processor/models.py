@@ -1,6 +1,8 @@
 from datetime import UTC, datetime
 from enum import StrEnum, auto
+from typing import Annotated
 
+from pydantic import StringConstraints, field_validator
 from sqlalchemy import BigInteger, Column, DateTime
 from sqlmodel import Field, SQLModel
 
@@ -19,8 +21,13 @@ class ProcessingStatus(StrEnum):
     finished = auto()
 
 
+Filename = Annotated[
+    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=255)
+]
+
+
 class ImageBase(SQLModel):
-    filename: str = Field(max_length=255)
+    filename: Filename
     content_type: str = Field(max_length=127)
 
 
@@ -50,7 +57,7 @@ class Image(ImageBase, table=True):
 
 
 class ImageUploadCreate(SQLModel):
-    filename: str = Field(min_length=1, max_length=255)
+    filename: Filename
     size_bytes: int = Field(gt=0)
 
 
@@ -59,8 +66,23 @@ class ImageUploadRead(SQLModel):
 
 
 class ImageUpdate(SQLModel):
-    filename: str | None = Field(default=None, max_length=255)
-    content_type: str | None = Field(default=None, max_length=127)
+    filename: Filename | None = None
+    content_type: (
+        Annotated[
+            str,
+            StringConstraints(
+                strip_whitespace=True, min_length=1, max_length=127
+            ),
+        ]
+        | None
+    ) = None
+
+    @field_validator("filename", "content_type", mode="before")
+    @classmethod
+    def reject_null_metadata(cls, value: object) -> object:
+        if value is None:
+            raise ValueError("must not be null")
+        return value
 
 
 class ImageRead(ImageBase):
