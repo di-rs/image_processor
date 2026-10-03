@@ -24,11 +24,15 @@ class ProcessingStatus(StrEnum):
 Filename = Annotated[
     str, StringConstraints(strip_whitespace=True, min_length=1, max_length=255)
 ]
+ContentType = Annotated[
+    str,
+    StringConstraints(strip_whitespace=True, min_length=1, max_length=127),
+]
 
 
 class ImageBase(SQLModel):
     filename: Filename
-    content_type: str = Field(max_length=127)
+    content_type: ContentType
 
 
 class Image(ImageBase, table=True):
@@ -67,15 +71,7 @@ class ImageUploadRead(SQLModel):
 
 class ImageUpdate(SQLModel):
     filename: Filename | None = None
-    content_type: (
-        Annotated[
-            str,
-            StringConstraints(
-                strip_whitespace=True, min_length=1, max_length=127
-            ),
-        ]
-        | None
-    ) = None
+    content_type: ContentType | None = None
 
     @field_validator("filename", "content_type", mode="before")
     @classmethod
