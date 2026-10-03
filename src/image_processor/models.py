@@ -92,6 +92,7 @@ class ImageUpdate(SQLModel):
 class ImageRead(ImageBase):
     original_url: str | None = None
     original_image: int | None = None
+    generated_images: list["ImageRead"] = Field(default_factory=list)
     id: int
     status: ProcessingStatus
     size_bytes: int
@@ -101,8 +102,16 @@ class ImageRead(ImageBase):
     updated_at: datetime
 
     @classmethod
-    def from_image(cls, image: Image, *, original_url: str) -> "ImageRead":
+    def from_image(
+        cls,
+        image: Image,
+        *,
+        original_url: str,
+        generated_images: list["ImageRead"] | None = None,
+    ) -> "ImageRead":
         result = cls.model_validate(image)
+        if generated_images is not None:
+            result.generated_images = generated_images
         if image.blob_key is not None and image.status not in {
             ProcessingStatus.pending_upload,
             ProcessingStatus.uploading,

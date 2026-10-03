@@ -13,12 +13,15 @@ def list_images(
     session: Session,
     *,
     statuses: list[ProcessingStatus] | None = None,
+    original_image: int | None = None,
     limit: int | None = None,
     offset: int | None = None,
 ) -> list[Image]:
     statement = select(Image).order_by(col(Image.created_at).desc())
     if statuses:
         statement = statement.where(col(Image.status).in_(statuses))
+    if original_image is not None:
+        statement = statement.where(col(Image.original_image) == original_image)
     if offset is not None:
         statement = statement.offset(offset)
     if limit is not None:

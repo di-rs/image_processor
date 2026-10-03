@@ -3,6 +3,7 @@ from datetime import timedelta
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import event
 from sqlmodel import Session
 
 from image_processor.models import Image, ProcessingStatus, utc_now
@@ -27,6 +28,52 @@ def test_get_image_returns_public_metadata(
     assert "updated_at" in data
     assert "blob_key" not in data
     assert "upload_expires_at" not in data
+
+
+def test_get_image_includes_generated_images_with_flag_true(
+    client: TestClient, session: Session, make_image: Callable[..., Image]
+) -> None:
+    original_id = make_image().id
+    generated_ids = [
+        make_image(
+            filename=f"generated-{index}.png",
+            original_image=original_id,
+            status=ProcessingStatus.finished,
+            blob_key=f"generated-{index}",
+        ).id
+        for index in range(2)
+    ]
+    unrelated_id = make_image().id
+    make_image(original_image=unrelated_id)
+    session.expire_all()
+    statements: list[str] = []
+
+    def record_statement(*args: object) -> None:
+        statements.append(str(args[2]))
+
+    engine = session.get_bind()
+    event.listen(engine, "before_cursor_execute", record_statement)
+    try:
+        response = client.get(
+            f"/images/{original_id}", params={"include_generated": True}
+        )
+    finally:
+        event.remove(engine, "before_cursor_execute", record_statement)
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["id"] == original_id
+    generated = data["generated_images"]
+    assert [image["id"] for image in generated] == generated_ids[::-1]
+    for index, image in enumerate(reversed(generated)):
+        assert image["original_image"] == original_id
+        assert image["filename"] == f"generated-{index}.png"
+        assert image["original_url"] == (
+            f"http://testserver/images/{generated_ids[index]}/original"
+        )
+        assert "blob_key" not in image
+        assert "upload_expires_at" not in image
+    assert len(statements) == 2
 
 
 def test_list_images_returns_empty_list(client: TestClient) -> None:

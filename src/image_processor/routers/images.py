@@ -123,11 +123,28 @@ def list_images(
 
 
 @router.get("/{image_id}", response_model=ImageRead)
-def read_image(image: ImageDep, request: Request) -> ImageRead:
+def read_image(
+    image: ImageDep,
+    session: SessionDep,
+    request: Request,
+    include_generated: bool = False,
+) -> ImageRead:
     logger.info("Reading image image_id=%s", image.id)
+    generated = image_service.get_generated_images(
+        session, image.id, include_generated=include_generated
+    )
     return ImageRead.from_image(
         image,
         original_url=str(request.url_for("read_original", image_id=image.id)),
+        generated_images=[
+            ImageRead.from_image(
+                child,
+                original_url=str(
+                    request.url_for("read_original", image_id=child.id)
+                ),
+            )
+            for child in generated
+        ],
     )
 
 

@@ -22,6 +22,14 @@ from ..models import (
 from .blob_storage import BlobStorage
 
 
+def get_generated_images(
+    session: Session, image_id: int, *, include_generated: bool = False
+) -> list[Image]:
+    if not include_generated:
+        return []
+    return crud.list_images(session, original_image=image_id, limit=20)
+
+
 def create_upload(
     session: Session,
     payload: ImageUploadCreate,
