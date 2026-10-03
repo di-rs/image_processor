@@ -21,8 +21,13 @@ class ProcessingStatus(StrEnum):
     finished = auto()
 
 
+MAX_FILENAME_LENGTH = 255
+
 Filename = Annotated[
-    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=255)
+    str,
+    StringConstraints(
+        strip_whitespace=True, min_length=1, max_length=MAX_FILENAME_LENGTH
+    ),
 ]
 ContentType = Annotated[
     str,
@@ -43,6 +48,9 @@ class Image(ImageBase, table=True):
     blob_key: str | None = Field(default=None, unique=True, index=True)
     upload_expires_at: datetime | None = Field(
         default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
+    )
+    original_image: int | None = Field(
+        default=None, foreign_key="image.id", ondelete="SET NULL", index=True
     )
     width: int | None = None
     height: int | None = None
@@ -83,6 +91,7 @@ class ImageUpdate(SQLModel):
 
 class ImageRead(ImageBase):
     original_url: str | None = None
+    original_image: int | None = None
     id: int
     status: ProcessingStatus
     size_bytes: int

@@ -30,8 +30,13 @@ class BlobStorage:
         return BlobKey.create()
 
     async def create_image(
-        self, blob_key: BlobKey, chunks: AsyncIterable[bytes], size_bytes: int
+        self,
+        blob_key: str | BlobKey,
+        chunks: AsyncIterable[bytes],
+        size_bytes: int,
     ) -> None:
+        if isinstance(blob_key, str):
+            blob_key = BlobKey(blob_key)
         with self._temporary_file() as file:
             await self._write_chunks(file, chunks, size_bytes)
             self._publish(file, blob_key)
@@ -68,16 +73,18 @@ class BlobStorage:
         # Publish without overwriting an existing key or copying bytes.
         link(file.name, self._image_path(blob_key))
 
-    def delete_image(self, blob_key: BlobKey) -> None:
+    def delete_image(self, blob_key: str | BlobKey) -> None:
         self._image_path(blob_key).unlink(missing_ok=True)
 
-    def get_image_path(self, blob_key: BlobKey) -> Path:
+    def get_image_path(self, blob_key: str | BlobKey) -> Path:
         path = self._image_path(blob_key)
         if not path.is_file():
             raise ImageNotFoundError("Image bytes not found")
         return path
 
-    def _image_path(self, blob_key: BlobKey) -> Path:
+    def _image_path(self, blob_key: str | BlobKey) -> Path:
+        if isinstance(blob_key, str):
+            blob_key = BlobKey(blob_key)
         return self.path / blob_key.value
 
 

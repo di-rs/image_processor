@@ -91,6 +91,15 @@ def save_image(session: Session, image: Image) -> None:
     session.commit()
 
 
+def update_image_status(
+    session: Session,
+    image: Image,
+    state: UploadedImage,
+) -> None:
+    image.status = ProcessingStatus(state.status)
+    save_image(session, image)
+
+
 def mark_image_queued(session: Session, image_id: int) -> None:
     session.execute(
         update(Image)

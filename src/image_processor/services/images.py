@@ -60,7 +60,7 @@ def get_original_path(image: Image, blob_storage: BlobStorage) -> Path:
         ProcessingStatus.uploading,
     }:
         raise ImageNotFoundError("Image bytes not available")
-    return blob_storage.get_image_path(BlobKey(image.blob_key))
+    return blob_storage.get_image_path(image.blob_key)
 
 
 def delete_image(
@@ -69,7 +69,7 @@ def delete_image(
     if image.status == ProcessingStatus.uploading:
         raise InvalidImageStateError("Cannot delete an active upload")
     if image.blob_key is not None:
-        blob_storage.delete_image(BlobKey(image.blob_key))
+        blob_storage.delete_image(image.blob_key)
     crud.delete_image(session, image)
 
 
