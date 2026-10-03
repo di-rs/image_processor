@@ -1,13 +1,14 @@
 from typing import Annotated
 
+from dramatiq import Broker
 from fastapi import Depends, HTTPException, status
 from sqlmodel import Session
 
 from . import crud
+from .broker import get_broker
 from .config import Settings, get_settings
 from .database import get_session
 from .models import Image
-from .rabbitmq import RabbitMQClient, get_rabbitmq_client
 from .services.blob_storage import BlobStorage, get_blob_storage
 
 SessionDep = Annotated[Session, Depends(get_session)]
@@ -15,11 +16,7 @@ SettingsDep = Annotated[Settings, Depends(get_settings)]
 
 
 BlobStorageDep = Annotated[BlobStorage, Depends(get_blob_storage)]
-
-RabbitMQClientDep = Annotated[
-    RabbitMQClient,
-    Depends(get_rabbitmq_client),
-]
+BrokerDep = Annotated[Broker, Depends(get_broker)]
 
 
 def get_image_or_404(image_id: int, session: SessionDep) -> Image:

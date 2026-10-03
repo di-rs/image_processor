@@ -17,6 +17,10 @@ LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s %(message)s"
 class Settings(BaseSettings):
     database_url: str = DEFAULT_DATABASE_URL
     rabbitmq_url: str = DEFAULT_RABBITMQ_URL
+    rabbitmq_connection_timeout_seconds: PositiveInt = 10
+    rabbitmq_blocked_connection_timeout_seconds: PositiveInt = 10
+
+    worker_failure_backoff_seconds: PositiveInt = 5
 
     upload_url_ttl_seconds: PositiveInt = DEFAULT_UPLOAD_URL_TTL_SECONDS
     blob_storage_path: Path = DEFAULT_BLOB_STORAGE_PATH

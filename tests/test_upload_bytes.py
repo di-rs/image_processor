@@ -3,40 +3,47 @@ from datetime import timedelta
 from unittest.mock import MagicMock
 
 import pytest
+from dramatiq import Message
+from dramatiq.errors import ConnectionClosed
 from fastapi.testclient import TestClient
-from pika.exceptions import AMQPConnectionError
 from sqlmodel import Session, select
 
+from image_processor.broker import IMAGE_PROCESSING_QUEUE
 from image_processor.domain.blob_key import BlobKey
 from image_processor.models import Image, ProcessingStatus, utc_now
 from image_processor.services.blob_storage import BlobStorage
+from image_processor.workers.image_processing import process_message
 
 
 def test_upload_stores_bytes_and_publishes_after_commit(
     client: TestClient,
     session: Session,
     blob_storage: BlobStorage,
-    rabbitmq: MagicMock,
+    broker: MagicMock,
     reserve_upload: Callable[..., str],
 ) -> None:
     url = reserve_upload()
 
-    def check_publish(image_id: int) -> None:
+    def check_publish(message: Message) -> None:
         image = session.exec(select(Image)).one()
-        assert image_id == image.id
+        assert message.queue_name == IMAGE_PROCESSING_QUEUE
+        assert message.actor_name == process_message.actor_name
+        assert message.args == (image.id,)
+        assert message.kwargs == {}
         assert image.status == ProcessingStatus.uploaded
         assert image.upload_expires_at is None
         assert image.blob_key is not None
         assert (blob_storage.path / image.blob_key).read_bytes() == b"abc"
 
-    rabbitmq.publish_image.side_effect = check_publish
+    broker.enqueue.side_effect = check_publish
     response = client.put(url, content=b"abc")
     assert response.status_code == 204
     assert response.content == b""
     image = session.exec(select(Image)).one()
     session.refresh(image)
     assert image.status == ProcessingStatus.queued
-    rabbitmq.publish_image.assert_called_once_with(image.id)
+    broker.enqueue.assert_called_once()
+    assert broker.enqueue.call_args.args[0].args == (image.id,)
     assert image.width is None
     assert image.height is None
 
@@ -45,7 +52,7 @@ def test_upload_url_cannot_be_reused(
     client: TestClient,
     session: Session,
     blob_storage: BlobStorage,
-    rabbitmq: MagicMock,
+    broker: MagicMock,
     reserve_upload: Callable[..., str],
 ) -> None:
     url = reserve_upload()
@@ -60,20 +67,21 @@ def test_upload_url_cannot_be_reused(
     assert (blob_storage.path / image.blob_key).read_bytes() == b"abc"
     session.refresh(image)
     assert image.status == ProcessingStatus.queued
-    rabbitmq.publish_image.assert_called_once_with(image.id)
+    broker.enqueue.assert_called_once()
+    assert broker.enqueue.call_args.args[0].args == (image.id,)
 
 
 def test_publish_failure_preserves_upload(
     client: TestClient,
     session: Session,
     blob_storage: BlobStorage,
-    rabbitmq: MagicMock,
+    broker: MagicMock,
     reserve_upload: Callable[..., str],
 ) -> None:
     url = reserve_upload()
-    rabbitmq.publish_image.side_effect = AMQPConnectionError()
+    broker.enqueue.side_effect = ConnectionClosed("RabbitMQ unavailable")
     # TestClient propagates unhandled exceptions rather than returning HTTP 500.
-    with pytest.raises(AMQPConnectionError):
+    with pytest.raises(ConnectionClosed):
         client.put(url, content=b"abc")
     image = session.exec(select(Image)).one()
     session.refresh(image)
@@ -81,7 +89,8 @@ def test_publish_failure_preserves_upload(
     assert image.upload_expires_at is None
     assert image.blob_key is not None
     assert (blob_storage.path / image.blob_key).read_bytes() == b"abc"
-    rabbitmq.publish_image.assert_called_once_with(image.id)
+    broker.enqueue.assert_called_once()
+    assert broker.enqueue.call_args.args[0].args == (image.id,)
 
 
 @pytest.mark.parametrize(
@@ -95,7 +104,7 @@ def test_wrong_size_removes_image_and_temporary_bytes(
     client: TestClient,
     session: Session,
     blob_storage: BlobStorage,
-    rabbitmq: MagicMock,
+    broker: MagicMock,
     reserve_upload: Callable[..., str],
     body: bytes,
     detail: str,
@@ -106,7 +115,7 @@ def test_wrong_size_removes_image_and_temporary_bytes(
     assert response.json() == {"detail": detail}
     assert session.exec(select(Image)).all() == []
     assert list(blob_storage.path.iterdir()) == []
-    rabbitmq.publish_image.assert_not_called()
+    broker.enqueue.assert_not_called()
     response = client.put(url, content=b"abc")
     assert response.status_code == 404
     assert response.json() == {"detail": "Upload not found"}
@@ -116,7 +125,7 @@ def test_expired_upload_is_removed_without_publishing(
     client: TestClient,
     session: Session,
     blob_storage: BlobStorage,
-    rabbitmq: MagicMock,
+    broker: MagicMock,
     reserve_upload: Callable[..., str],
 ) -> None:
     url = reserve_upload()
@@ -130,13 +139,13 @@ def test_expired_upload_is_removed_without_publishing(
     assert response.json() == {"detail": "Upload URL has expired"}
     assert session.exec(select(Image)).all() == []
     assert list(blob_storage.path.iterdir()) == []
-    rabbitmq.publish_image.assert_not_called()
+    broker.enqueue.assert_not_called()
 
 
 def test_already_claimed_upload_is_not_modified(
     client: TestClient,
     session: Session,
-    rabbitmq: MagicMock,
+    broker: MagicMock,
     reserve_upload: Callable[..., str],
 ) -> None:
     url = reserve_upload()
@@ -150,7 +159,7 @@ def test_already_claimed_upload_is_not_modified(
     assert response.json() == {"detail": "Upload URL has already been used"}
     session.refresh(image)
     assert image.status == ProcessingStatus.uploading
-    rabbitmq.publish_image.assert_not_called()
+    broker.enqueue.assert_not_called()
 
 
 def test_original_url_becomes_available_after_upload(
@@ -211,9 +220,9 @@ def test_delete_uploaded_image_removes_stored_bytes(
 
 
 def test_unknown_upload_returns_404(
-    client: TestClient, rabbitmq: MagicMock
+    client: TestClient, broker: MagicMock
 ) -> None:
     response = client.put(f"/images/uploads/{BlobKey.create()}", content=b"abc")
     assert response.status_code == 404
     assert response.json() == {"detail": "Upload not found"}
-    rabbitmq.publish_image.assert_not_called()
+    broker.enqueue.assert_not_called()

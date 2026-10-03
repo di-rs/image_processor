@@ -19,7 +19,6 @@ from ..models import (
     ProcessingStatus,
     utc_now,
 )
-from ..rabbitmq import RabbitMQClient
 from .blob_storage import BlobStorage
 
 
@@ -79,8 +78,7 @@ async def upload_image(
     blob_key: BlobKey,
     chunks: AsyncIterable[bytes],
     blob_storage: BlobStorage,
-    rabbitmq: RabbitMQClient,
-) -> None:
+) -> Image:
     image = claim_upload(session, blob_key)
     stored = False
     try:
@@ -97,5 +95,4 @@ async def upload_image(
             crud.discard_upload(session, image)
         raise
 
-    rabbitmq.publish_image(image.id)
-    crud.mark_image_queued(session, image.id)
+    return image

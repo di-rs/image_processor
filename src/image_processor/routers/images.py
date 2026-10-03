@@ -7,8 +7,8 @@ from fastapi.responses import FileResponse
 from .. import crud
 from ..dependencies import (
     BlobStorageDep,
+    BrokerDep,
     ImageDep,
-    RabbitMQClientDep,
     SessionDep,
     SettingsDep,
 )
@@ -21,6 +21,7 @@ from ..models import (
     ProcessingStatus,
 )
 from ..services import images as image_service
+from ..workers.image_processing import process_message
 
 logger = logging.getLogger(__name__)
 
@@ -70,11 +71,13 @@ async def upload_image(
     request: Request,
     session: SessionDep,
     storage: BlobStorageDep,
-    rabbitmq: RabbitMQClientDep,
+    broker: BrokerDep,
 ) -> None:
-    await image_service.upload_image(
-        session, BlobKey(blob_key), request.stream(), storage, rabbitmq
+    image = await image_service.upload_image(
+        session, BlobKey(blob_key), request.stream(), storage
     )
+    broker.enqueue(process_message.message(image.id))
+    crud.mark_image_queued(session, image.id)
 
 
 @router.get("/{image_id}/original", response_class=FileResponse)

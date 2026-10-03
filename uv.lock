@@ -182,6 +182,20 @@ wheels = [
 ]
 
 [[package]]
+name = "dramatiq"
+version = "2.2.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/14/6d/d056a8ba251c216da054fc5db9ad7931bfb9ab28851e8b86acd770ce8867/dramatiq-2.2.1.tar.gz", hash = "sha256:f9fbbd2feea27b3fa4085446242a24d86f78288b20c78a93f9f0bdbd7d908cd5", size = 109994, upload-time = "2026-09-02T07:55:09.979Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/8c/13/0550ff585ade7b423e2ecaac29c4ab88673a58ae92ef25b6629089a2b92c/dramatiq-2.2.1-py3-none-any.whl", hash = "sha256:4e2466d07d5a1c4910b49944e5b45704c123b82325384e1319f6d08d94559c46", size = 127754, upload-time = "2026-09-02T07:55:08.423Z" },
+]
+
+[package.optional-dependencies]
+rabbitmq = [
+    { name = "pika" },
+]
+
+[[package]]
 name = "email-validator"
 version = "2.3.0"
 source = { registry = "https://pypi.org/simple" }
@@ -502,8 +516,8 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "alembic" },
+    { name = "dramatiq", extra = ["rabbitmq"] },
     { name = "fastapi", extra = ["standard"] },
-    { name = "pika" },
     { name = "pillow" },
     { name = "psycopg", extra = ["binary"] },
     { name = "pydantic" },
@@ -525,8 +539,8 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "alembic", specifier = ">=1.20.0" },
+    { name = "dramatiq", extras = ["rabbitmq"], specifier = ">=2.2.1,<3" },
     { name = "fastapi", extras = ["standard"], specifier = ">=0.142.0" },
-    { name = "pika", specifier = ">=1.4.4" },
     { name = "pillow", specifier = ">=12.0" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.3.6" },
     { name = "pydantic", specifier = ">=2.13.5" },

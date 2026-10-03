@@ -4,6 +4,9 @@ x-app-environment: &app-environment
   BLOB_STORAGE_PATH: "${BLOB_STORAGE_PATH:?Set BLOB_STORAGE_PATH in .env}"
   UPLOAD_URL_TTL_SECONDS: "${UPLOAD_URL_TTL_SECONDS:-300}"
   DEBUG: "${DEBUG:-false}"
+  RABBITMQ_CONNECTION_TIMEOUT_SECONDS: "${RABBITMQ_CONNECTION_TIMEOUT_SECONDS:-10}"
+  RABBITMQ_BLOCKED_CONNECTION_TIMEOUT_SECONDS: "${RABBITMQ_BLOCKED_CONNECTION_TIMEOUT_SECONDS:-10}"
+  WORKER_FAILURE_BACKOFF_SECONDS: "${WORKER_FAILURE_BACKOFF_SECONDS:-5}"
 
 services:
   web:
@@ -34,11 +37,20 @@ services:
 
   worker:
     build: .
-    command: ["python", "-m", "image_processor.workers.image_processing"]
+    command:
+      - dramatiq
+      - image_processor.workers.image_processing
+      - --processes
+      - "1"
+      - --threads
+      - "${WORKER_CONCURRENCY:-4}"
+      - --worker-shutdown-timeout
+      - "${WORKER_SHUTDOWN_TIMEOUT_MS:-30000}"
     restart: on-failure
+    stop_grace_period: ${WORKER_STOP_GRACE_PERIOD:-45s}
     environment: *app-environment
     volumes:
-      - "image_data:${BLOB_STORAGE_PATH:?Set BLOB_STORAGE_PATH in .env}:ro"
+      - "image_data:${BLOB_STORAGE_PATH:?Set BLOB_STORAGE_PATH in .env}"
     depends_on:
       web:
         condition: service_healthy

@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import time
 from contextlib import asynccontextmanager
@@ -7,7 +8,9 @@ from fastapi import FastAPI, Request
 
 from . import __version__
 from .app.exception_handlers import register_exception_handlers
+from .broker import IMAGE_PROCESSING_QUEUE, get_broker
 from .config import configure_logging, get_settings
+from .database import dispose_engine
 from .routers import images
 
 APP_NAME = "Image Processing API"
@@ -17,7 +20,17 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     configure_logging(debug=get_settings().debug)
-    yield
+    broker = get_broker()
+    try:
+        await asyncio.to_thread(
+            broker.declare_queue, IMAGE_PROCESSING_QUEUE, ensure=True
+        )
+        yield
+    finally:
+        try:
+            await asyncio.to_thread(broker.close)
+        finally:
+            await asyncio.to_thread(dispose_engine)
 
 
 app = FastAPI(

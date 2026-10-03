@@ -13,6 +13,12 @@ def get_engine() -> Engine:
     return create_engine(get_settings().database_url)
 
 
+def dispose_engine() -> None:
+    if get_engine.cache_info().currsize:
+        get_engine().dispose()
+        get_engine.cache_clear()
+
+
 @contextmanager
 def open_session() -> Generator[Session]:
     with Session(get_engine()) as session:
