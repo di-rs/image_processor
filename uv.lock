@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.14"
 resolution-markers = [
     "python_full_version >= '3.15'",
@@ -518,6 +518,8 @@ dependencies = [
     { name = "alembic" },
     { name = "dramatiq", extra = ["rabbitmq"] },
     { name = "fastapi", extra = ["standard"] },
+    { name = "opentelemetry-exporter-otlp-proto-http" },
+    { name = "opentelemetry-sdk" },
     { name = "pillow" },
     { name = "psycopg", extra = ["binary"] },
     { name = "pydantic" },
@@ -541,6 +543,8 @@ requires-dist = [
     { name = "alembic", specifier = ">=1.20.0" },
     { name = "dramatiq", extras = ["rabbitmq"], specifier = ">=2.2.1,<3" },
     { name = "fastapi", extras = ["standard"], specifier = ">=0.142.0" },
+    { name = "opentelemetry-exporter-otlp-proto-http", specifier = ">=1.45.0" },
+    { name = "opentelemetry-sdk", specifier = ">=1.45.0" },
     { name = "pillow", specifier = ">=12.1" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.3.6" },
     { name = "pydantic", specifier = ">=2.13.5" },

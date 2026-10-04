@@ -1,3 +1,4 @@
+import logging
 from asyncio import run
 from collections.abc import AsyncIterable, Callable, Sequence
 from dataclasses import dataclass
@@ -21,6 +22,9 @@ from ..models import (
 )
 from .blob_storage import BlobStorage
 from .images import create_upload, get_original_path, upload_image
+
+logger = logging.getLogger(__name__)
+RETRYABLE_FAILURE = "processing.retryable_failure"
 
 
 @dataclass
@@ -103,6 +107,9 @@ def process_image(
 
     crud.update_image_status(session, image, processing)
 
+    log_id = str(image.id)
+    extra = {"image_id": log_id, "event_name": "processing.started"}
+    logger.info("Processing started", extra=extra)
     context: ProcessingContext | None = None
     try:
         original_path = get_original_path(image, blob_storage)
@@ -113,7 +120,15 @@ def process_image(
 
         finished = processing.finish_processing()
         crud.update_image_status(session, image, finished)
+        extra = {"image_id": log_id, "event_name": "processing.finished"}
+        logger.info("Processing finished", extra=extra)
     except Exception as exc:
+        if isinstance(exc, SQLAlchemyError):
+            extra = {"image_id": log_id, "event_name": RETRYABLE_FAILURE}
+            logger.error("DB failure: %s", type(exc).__name__, extra=extra)
+        else:
+            extra = {"image_id": log_id, "event_name": "processing.failed"}
+            logger.exception("Processing failed", extra=extra)
         session.rollback()
         if context is not None and context.generated_image is not None:
             generated = context.generated_image

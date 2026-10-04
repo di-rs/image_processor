@@ -11,7 +11,7 @@ from .app.exception_handlers import register_exception_handlers
 from .broker import IMAGE_PROCESSING_QUEUE, get_broker
 from .config import configure_logging, get_settings
 from .database import dispose_engine
-from .routers import images
+from .routers import debug, images
 
 APP_NAME = "Image Processing API"
 logger = logging.getLogger(__name__)
@@ -19,18 +19,20 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
-    configure_logging(debug=get_settings().debug)
-    broker = get_broker()
+    configure_logging(
+        settings=get_settings(), service_name="image-processor-api"
+    )
     try:
-        await asyncio.to_thread(
-            broker.declare_queue, IMAGE_PROCESSING_QUEUE, ensure=True
-        )
-        yield
-    finally:
+        broker = get_broker()
         try:
-            await asyncio.to_thread(broker.close)
+            await asyncio.to_thread(
+                broker.declare_queue, IMAGE_PROCESSING_QUEUE, ensure=True
+            )
+            yield
         finally:
-            await asyncio.to_thread(dispose_engine)
+            await asyncio.to_thread(broker.close)
+    finally:
+        await asyncio.to_thread(dispose_engine)
 
 
 app = FastAPI(
@@ -45,13 +47,21 @@ register_exception_handlers(app)
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
     start_time = time.perf_counter()
-    response = await call_next(request)
+    try:
+        response = await call_next(request)
+    except Exception as exc:
+        logger.error(
+            "%s %s request failed",
+            request.method,
+            getattr(request.scope.get("route"), "path", "<unmatched>"),
+            extra={"exception_type": type(exc).__name__},
+        )
+        raise
     process_time = (time.perf_counter() - start_time) * 1000
-
     logger.info(
         "%s %s completed in %.2fms with status code %s",
         request.method,
-        request.url.path,
+        getattr(request.scope.get("route"), "path", "<unmatched>"),
         process_time,
         response.status_code,
     )
@@ -59,6 +69,7 @@ async def log_requests(request: Request, call_next):
 
 
 app.include_router(images.router)
+app.include_router(debug.router)
 
 
 @app.get("/health")

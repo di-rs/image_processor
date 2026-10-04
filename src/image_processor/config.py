@@ -2,7 +2,11 @@ import logging
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import PositiveInt
+from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter
+from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
+from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
+from opentelemetry.sdk.resources import Resource
+from pydantic import Field, PositiveInt
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 DEFAULT_DATABASE_URL = "postgresql+psycopg://image_processor:image_processor@localhost:5432/image_processor"
@@ -26,15 +30,39 @@ class Settings(BaseSettings):
     blob_storage_path: Path = DEFAULT_BLOB_STORAGE_PATH
 
     debug: bool = False
+    telemetry_enabled: bool = False
+    otel_logs_endpoint: str = Field(
+        default="http://127.0.0.1:4318/v1/logs",
+        validation_alias="OTEL_EXPORTER_OTLP_LOGS_ENDPOINT",
+    )
 
     model_config = SettingsConfigDict(
         env_file=".env", env_file_encoding="utf-8", extra="ignore"
     )
 
 
-def configure_logging(*, debug: bool) -> None:
-    level = logging.DEBUG if debug else logging.INFO
+def configure_logging(*, settings: Settings, service_name: str) -> None:
+    level = logging.DEBUG if settings.debug else logging.INFO
     logging.basicConfig(level=level, format=LOG_FORMAT)
+    root = logging.getLogger()
+    root.setLevel(level)
+    if not settings.telemetry_enabled or any(
+        isinstance(handler, LoggingHandler) for handler in root.handlers
+    ):
+        return
+    # Standard OTEL_RESOURCE_ATTRIBUTES can override the default namespace.
+    resource = Resource({"service.namespace": "image-processor"}).merge(
+        Resource.create({"service.name": service_name})
+    )
+    provider = LoggerProvider(resource=resource)
+    provider.add_log_record_processor(
+        BatchLogRecordProcessor(
+            OTLPLogExporter(endpoint=settings.otel_logs_endpoint)
+        )
+    )
+    handler = LoggingHandler(logger_provider=provider)
+    handler.addFilter(logging.Filter("image_processor"))
+    root.addHandler(handler)
 
 
 @lru_cache

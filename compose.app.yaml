@@ -4,6 +4,10 @@ x-app-environment: &app-environment
   BLOB_STORAGE_PATH: "${BLOB_STORAGE_PATH:?Set BLOB_STORAGE_PATH in .env}"
   UPLOAD_URL_TTL_SECONDS: "${UPLOAD_URL_TTL_SECONDS:-300}"
   DEBUG: "${DEBUG:-false}"
+  TELEMETRY_ENABLED: "${TELEMETRY_ENABLED:-true}"
+  OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: "${OTEL_EXPORTER_OTLP_LOGS_ENDPOINT:-http://otel-collector:4318/v1/logs}"
+
+  OTEL_RESOURCE_ATTRIBUTES: "${OTEL_RESOURCE_ATTRIBUTES:-}"
   RABBITMQ_CONNECTION_TIMEOUT_SECONDS: "${RABBITMQ_CONNECTION_TIMEOUT_SECONDS:-10}"
   RABBITMQ_BLOCKED_CONNECTION_TIMEOUT_SECONDS: "${RABBITMQ_BLOCKED_CONNECTION_TIMEOUT_SECONDS:-10}"
   WORKER_FAILURE_BACKOFF_SECONDS: "${WORKER_FAILURE_BACKOFF_SECONDS:-5}"
@@ -91,8 +95,29 @@ services:
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
 
+  loki:
+    image: grafana/loki:3.5.5
+    command: ["-config.file=/etc/loki/local-config.yaml"]
+    restart: unless-stopped
+
+    ports:
+      - "127.0.0.1:3100:3100"
+    volumes:
+      - ./observability/loki.yaml:/etc/loki/local-config.yaml:ro
+      - loki_data:/loki
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.136.0
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    restart: unless-stopped
+
+    ports:
+      - "127.0.0.1:4318:4318"
+    volumes:
+      - ./observability/otel-collector.yaml:/etc/otelcol-contrib/config.yaml:ro
 
 volumes:
   postgres_data:
   rabbitmq_data:
   image_data:
+  loki_data:

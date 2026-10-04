@@ -33,7 +33,6 @@ def process_message(image_id: Annotated[int, Field(gt=0, strict=True)]) -> None:
     with open_session() as session:
         image = crud.get_image(session, image_id)
         if image is None or image.status == ProcessingStatus.finished:
-            logger.info("Skipping image: image_id=%s", image_id)
+            logger.info("Skipping image", extra={"image_id": str(image_id)})
             return
         process_image(session, image, get_blob_storage())
-    logger.info("Image processing completed: image_id=%s", image_id)

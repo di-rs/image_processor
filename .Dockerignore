@@ -10,3 +10,4 @@ htmlcov
 .env
 .uv-cache
 data
+debug_test_webapp

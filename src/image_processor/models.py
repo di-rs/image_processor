@@ -23,6 +23,7 @@ class ProcessingStatus(StrEnum):
 
 MAX_FILENAME_LENGTH = 255
 
+
 Filename = Annotated[
     str,
     StringConstraints(
@@ -118,3 +119,21 @@ class ImageRead(ImageBase):
         }:
             result.original_url = original_url
         return result
+
+
+class DebugImageRead(ImageRead):
+    blob_key: str | None = None
+    upload_expires_at: datetime | None = None
+
+
+class DebugImagePage(SQLModel):
+    items: list[DebugImageRead]
+    total: int
+    limit: int
+    offset: int
+
+
+class DebugSummary(SQLModel):
+    counts: dict[ProcessingStatus, int]
+    total: int
+    queue_name: str

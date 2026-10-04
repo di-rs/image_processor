@@ -15,7 +15,9 @@ IMAGE_PROCESSING_QUEUE = "image_processing_tasks"
 
 class WorkerResources(Middleware):
     def after_process_boot(self, broker: Broker) -> None:
-        configure_logging(debug=get_settings().debug)
+        configure_logging(
+            settings=get_settings(), service_name="image-processor-worker"
+        )
 
     def after_worker_shutdown(self, broker: Broker, worker: Worker) -> None:
         dispose_engine()

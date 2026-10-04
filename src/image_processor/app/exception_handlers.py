@@ -22,7 +22,7 @@ def register_exception_handlers(app: FastAPI) -> None:
         logger.warning(
             "IntegrityError handled method=%s path=%s",
             request.method,
-            request.url.path,
+            getattr(request.scope.get("route"), "path", "<unmatched>"),
         )
         return JSONResponse(
             status_code=status.HTTP_409_CONFLICT,
@@ -36,7 +36,7 @@ def register_exception_handlers(app: FastAPI) -> None:
         logger.info(
             "Domain error handled method=%s path=%s error=%s",
             request.method,
-            request.url.path,
+            getattr(request.scope.get("route"), "path", "<unmatched>"),
             type(exc).__name__,
         )
         return JSONResponse(

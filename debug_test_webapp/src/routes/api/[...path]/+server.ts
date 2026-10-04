@@ -1,0 +1,12 @@
+import { env } from '$env/dynamic/private';
+import { proxy } from '$lib/server/proxy';
+import type { RequestHandler } from './$types';
+export const trailingSlash = 'ignore';
+const handle: RequestHandler = ({ request, url }) => proxy(request, url.pathname.slice('/api/'.length), env.BACKEND_URL ?? 'http://127.0.0.1:8000');
+export const GET = handle;
+export const POST = handle;
+export const PUT = handle;
+export const PATCH = handle;
+export const DELETE = handle;
+export const OPTIONS = handle;
+export const HEAD = handle;
