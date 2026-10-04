@@ -22,19 +22,6 @@ To stop the app:
 docker compose -f compose.app.yaml down
 ```
 
-## Debug web console
-
-The optional [SvelteKit debug console](debug_test_webapp/README.md) lives in `debug_test_webapp/` and runs separately from Compose. It shows upload reservations, live processing states, paginated original/generated comparisons, failure details, metadata actions, and a request inspector. Existing backend volumes remain the source of persistent data. **Fully vibe-coded, not a purpose of this repo**
-
-```sh
-cd debug_test_webapp
-pnpm install
-cp .env.example .env
-pnpm dev
-```
-
-Open http://127.0.0.1:5173 with the backend running and `DEBUG=true` set for the API at startup (for Compose, set it in the backend `.env` before recreating the API). `DEBUG=false` leaves `/debug/*` unregistered and absent from OpenAPI. DEBUG is not authentication. The debug endpoints are unauthenticated and intended for local use only.
-
 ## Architecture
 
 The API and background worker run as separate Docker Compose services. The API publishes tasks to RabbitMQ; the independently running worker consumes and executes them. RabbitMQ is the message broker—it does not start or run the worker.
@@ -60,6 +47,19 @@ The request flow is:
 2. The client uploads bytes; the API saves them to the shared volume and queues the image ID.
 3. The worker consumes the task, processes the file, and saves the generated image and metadata.
 4. The client polls the API for completion and downloads the result through the API.
+
+## Debug web console
+
+The optional [SvelteKit debug console](debug_test_webapp/README.md) lives in `debug_test_webapp/` and runs separately from Compose. It shows upload reservations, live processing states, paginated original/generated comparisons, failure details, metadata actions, and a request inspector. Existing backend volumes remain the source of persistent data. **Fully vibe-coded, not a purpose of this repo**
+
+```sh
+cd debug_test_webapp
+pnpm install
+cp .env.example .env
+pnpm dev
+```
+
+Open http://127.0.0.1:5173 with the backend running and `DEBUG=true` set for the API at startup (for Compose, set it in the backend `.env` before recreating the API). `DEBUG=false` leaves `/debug/*` unregistered and absent from OpenAPI. DEBUG is not authentication. The debug endpoints are unauthenticated and intended for local use only.
 
 ## Notes
 
